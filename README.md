@@ -3,6 +3,7 @@
 # PoggerPark!
 
 To build in windows (with MSBuild) -
+Note that you need to have [Vulkan SDK](https://www.lunarg.com/vulkan-sdk/) installed
 
 ```bash
 @echo off

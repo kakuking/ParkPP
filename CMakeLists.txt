@@ -6,12 +6,15 @@ project(PoggerPark LANGUAGES C CXX)
 
 add_subdirectory(ext)
 
+file(GLOB_RECURSE POGGERPARK_SOURCES "src/*.cpp")
+
 add_executable(PoggerPark
   src/main.cpp
 )
 
 # Include directories
 target_include_directories(PoggerPark PRIVATE
+  ${PROJECT_SOURCE_DIR}/include
   ${vma_SOURCE_DIR}/include
   ${glm_SOURCE_DIR}
   ${stb_SOURCE_DIR}

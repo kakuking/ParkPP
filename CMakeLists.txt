@@ -6,10 +6,12 @@ project(PoggerPark LANGUAGES C CXX)
 
 add_subdirectory(ext)
 
-file(GLOB_RECURSE POGGERPARK_SOURCES "src/*.cpp")
+file(GLOB_RECURSE POGGERPARK_SOURCES "src/**/*.cpp" "src/*.cpp")
+file(GLOB_RECURSE POGGERPARK_HEADERS "include/**/*.h" "include/*.h")
 
 add_executable(PoggerPark
-  src/main.cpp
+  ${POGGERPARK_SOURCES}
+  ${POGGERPARK_HEADERS}
 )
 
 # Include directories

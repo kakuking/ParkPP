@@ -1,21 +1,14 @@
-#include <iostream>
-#include <glm/glm.hpp>
-#include <VkBootstrap.h>
-#include <fmt/format.h>
+#include <engine/renderer.h> 
 
-#include <engine.hpp>
+int main() {    
+    Engine::Renderer renderer;
 
-void EngineCore::hello_world() {
-    std::cout << "Hello world -- " << ping << " -- \n";
-}
-
-int main() {
-    glm::vec2 pog(0.0, 1.0);
-    vkb::InstanceBuilder builder;
-    EngineCore eng;
-    
-    eng.hello_world();
-    fmt::println("pog - ({}, {})", pog.x, pog.y);
+    try {
+        renderer.run();
+    } catch (const std::exception& e) {
+        std::cerr << e.what() << "\n";
+        return -1;
+    }
 
     return 0;
 }

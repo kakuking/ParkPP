@@ -13,12 +13,20 @@ namespace Engine {
 
     void Renderer::initialize() {
         std::cout << "Init\n";
+        // std::cout << "Creating instance\n";
         create_instance();
+        // std::cout << "Creating surface\n";
         create_surface();
+        // std::cout << "Creating physical device\n";
         pick_physical_device();
+        // std::cout << "Creating logical device\n";
         create_logical_device();
+        // std::cout << "Creating swapchains\n";
         create_swapchains();
+        // std::cout << "Creating pipeline\n";
+        create_graphics_pipeline();
     }
+    
 
     void Renderer::loop() {
         while(!glfwWindowShouldClose(m_window.get_window()))
@@ -28,6 +36,7 @@ namespace Engine {
     void Renderer::cleanup() {
         std::cout << "Cleaning up\n";
 
+        m_graphics_pipeline.destroy_pipeline(m_dispatch);
         m_swapchain.destroy_image_views(m_swapchain_image_views);
         vkb::destroy_swapchain(m_swapchain);
         vkb::destroy_device(m_device);
@@ -37,8 +46,6 @@ namespace Engine {
     }
 
     void Renderer::create_instance() {
-        std::cout << "Creating instance\n";
-
         // Get extensions
         uint32_t glfw_extn_count = 0;
         const char** glfw_extns;
@@ -101,6 +108,7 @@ namespace Engine {
             throw std::runtime_error("Could not create logical device");
         
         m_device = builder_ret.value();
+        m_dispatch = m_device.make_table();
 
         auto graphics_queue_ret = m_device.get_queue(vkb::QueueType::graphics);
         if(!graphics_queue_ret)
@@ -135,12 +143,9 @@ namespace Engine {
             throw std::runtime_error("Could not get swapchain image views");
 
         m_swapchain_image_views = swapchain_image_views_ret.value();
-
-        m_swapchain_image_format = m_swapchain.image_format;
-        m_swapchain_extent = m_swapchain.extent;
     }
 
     void Renderer::create_graphics_pipeline() {
-        
+        m_graphics_pipeline.create_pipeline(m_dispatch, m_swapchain, "./shaders/shader.vert.spv", "./shaders/shader.frag.spv");
     }
 };

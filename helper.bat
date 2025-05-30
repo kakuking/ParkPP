@@ -7,4 +7,6 @@ cmake  -G "Visual Studio 17 2022" -DCMAKE_BUILD_TYPE=%BUILD_TYPE% ..
 
 msbuild PoggerPark.sln -property:Configuration=Release
 
-.\Release\PoggerPark.exe
+cd Release
+
+.\PoggerPark.exe

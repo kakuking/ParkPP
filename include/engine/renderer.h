@@ -7,6 +7,7 @@
 #include <stdexcept>
 
 #include <engine/window.h>
+#include <engine/pipeline.h>
 
 namespace Engine {
 
@@ -34,14 +35,14 @@ private:
     vkb::Instance m_instance;
     vkb::PhysicalDevice m_physical_device;
     vkb::Device m_device;
+    vkb::DispatchTable m_dispatch;
     VkQueue m_graphics_queue, m_present_queue;
     VkSurfaceKHR m_surface = nullptr;
 
     vkb::Swapchain m_swapchain;
     std::vector<VkImage> m_swapchain_images;
     std::vector<VkImageView> m_swapchain_image_views;
-    VkFormat m_swapchain_image_format;
-    VkExtent2D m_swapchain_extent;
+    Pipeline m_graphics_pipeline;
 };
 
 }

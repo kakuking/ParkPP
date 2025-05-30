@@ -11,6 +11,9 @@ public:
     void create_pipeline(vkb::DispatchTable &dispatch, vkb::Swapchain swapchain, const std::string &vert_shader_filename, const std::string &frag_shader_filename);
     void destroy_pipeline(vkb::DispatchTable &dispatch);
 
+    VkRenderPass get_render_pass();
+    VkPipeline get_pipeline();
+
 private:
 
     VkPipelineDynamicStateCreateInfo get_dynamic_state_create_info();

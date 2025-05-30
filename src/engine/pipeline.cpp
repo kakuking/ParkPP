@@ -216,6 +216,14 @@ void Pipeline::create_render_pass(vkb::DispatchTable &dispatch, vkb::Swapchain s
     subpass.pDepthStencilAttachment = nullptr;
     subpass.pPreserveAttachments = nullptr;
     subpass.pInputAttachments = nullptr;
+
+    VkSubpassDependency dependancy{};
+    dependancy.srcSubpass = VK_SUBPASS_EXTERNAL;
+    dependancy.dstSubpass = 0;
+    dependancy.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependancy.srcAccessMask = 0;
+    dependancy.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependancy.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
     
     // std::cout << "creating render pass create info\n";
     VkRenderPassCreateInfo render_pass_info{};
@@ -224,10 +232,19 @@ void Pipeline::create_render_pass(vkb::DispatchTable &dispatch, vkb::Swapchain s
     render_pass_info.pAttachments = &color_attachment;
     render_pass_info.subpassCount = 1;
     render_pass_info.pSubpasses = &subpass;
-    render_pass_info.pDependencies = nullptr;
+    render_pass_info.dependencyCount = 1;
+    render_pass_info.pDependencies = &dependancy;
     
     // std::cout << "creating render pass\n";
     if(dispatch.createRenderPass(&render_pass_info, NULL, &m_render_pass) != VK_SUCCESS)
         throw std::runtime_error("Failed to create a render pass!");
+}
+
+VkRenderPass Pipeline::get_render_pass() {
+    return m_render_pass;
+}
+
+VkPipeline Pipeline::get_pipeline() {
+    return m_pipeline;
 }
 }

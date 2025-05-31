@@ -318,7 +318,6 @@ void Renderer::record_command_buffer(VkCommandBuffer command_buffer, uint32_t im
 
     if(m_dispatch.endCommandBuffer(command_buffer) != VK_SUCCESS)
         throw std::runtime_error("Failed to record command buffers!");
-
 }
 
 void Renderer::create_sync_objects() {
@@ -444,6 +443,7 @@ void Renderer::create_buffer(VkDeviceSize buffer_size, uint32_t usage, uint32_t 
         throw std::runtime_error("failed to allocate vertex buffer memory!");
 }
 
+// void Renderer::create_vertex_buffer(VkDeviceSize vertex_buffer_size, void* data, bool persistent_buffer = false) {
 void Renderer::create_vertex_buffer() {
     VkDeviceSize buffer_size = sizeof(vertices[0]) * vertices.size(); 
 

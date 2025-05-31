@@ -18,6 +18,8 @@ void Pipeline::create_pipeline(vkb::DispatchTable &dispatch, vkb::Swapchain swap
         m_frag_shader.get_shader_stage_create_info()
     };
 
+    // std::cout << "Creating desc sets\n";
+    create_descriptor_set_layout(dispatch);
     // std::cout << "Creating dyn states\n";
     VkPipelineDynamicStateCreateInfo dynamic_states = get_dynamic_state_create_info();
     // std::cout << "Creating vert inp info\n";
@@ -68,6 +70,7 @@ void Pipeline::create_pipeline(vkb::DispatchTable &dispatch, vkb::Swapchain swap
 }
 
 void Pipeline::destroy_pipeline(vkb::DispatchTable &dispatch) {
+    dispatch.destroyDescriptorSetLayout(m_descriptor_set_layout, nullptr);
     dispatch.destroyRenderPass(m_render_pass, nullptr);
     dispatch.destroyPipeline(m_pipeline, nullptr);
     dispatch.destroyPipelineLayout(m_pipeline_layout, nullptr);
@@ -90,10 +93,17 @@ VkPipelineDynamicStateCreateInfo Pipeline::get_dynamic_state_create_info() {
 }
 
 VkPipelineVertexInputStateCreateInfo Pipeline::get_vertex_input_state_create_info() {
+
+    static auto binding_desc = Vertex::get_binding_description();
+    static auto attr_desc = Vertex::get_attribute_description();
+
     VkPipelineVertexInputStateCreateInfo info{};
     info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-    info.vertexBindingDescriptionCount= 0 ;
-    info.vertexAttributeDescriptionCount = 0;
+    info.vertexBindingDescriptionCount = 1;
+    info.pVertexBindingDescriptions = &binding_desc;
+
+    info.vertexAttributeDescriptionCount = static_cast<uint32_t>(attr_desc.size());
+    info.pVertexAttributeDescriptions = attr_desc.data();
     
     return info;
 }
@@ -146,7 +156,7 @@ VkPipelineRasterizationStateCreateInfo Pipeline::get_rasterizer_state() {
     rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
     rasterizer.lineWidth = 1.f;
     rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
-    rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
+    rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
     rasterizer.depthBiasClamp = VK_FALSE;
 
     return rasterizer;
@@ -182,8 +192,8 @@ VkPipelineColorBlendStateCreateInfo Pipeline::get_color_blend_state(VkPipelineCo
 VkPipelineLayoutCreateInfo Pipeline::get_pipeline_layout_create_info() {
     VkPipelineLayoutCreateInfo info{};
     info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    info.setLayoutCount = 0;
-    info.pSetLayouts = nullptr;
+    info.setLayoutCount = 1;
+    info.pSetLayouts = &m_descriptor_set_layout;
     info.pushConstantRangeCount = 0;
     info.pPushConstantRanges = nullptr;
 
@@ -246,5 +256,30 @@ VkRenderPass Pipeline::get_render_pass() {
 
 VkPipeline Pipeline::get_pipeline() {
     return m_pipeline;
+}
+
+void Pipeline::create_descriptor_set_layout(vkb::DispatchTable &dispatch) {
+    VkDescriptorSetLayoutBinding ubo_layout_binding{};
+    ubo_layout_binding.binding = 0;
+    ubo_layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    ubo_layout_binding.descriptorCount = 1;
+    ubo_layout_binding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    ubo_layout_binding.pImmutableSamplers = nullptr;
+
+    VkDescriptorSetLayoutCreateInfo layout_info{};
+    layout_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    layout_info.bindingCount = 1;
+    layout_info.pBindings = &ubo_layout_binding;
+
+    if(dispatch.createDescriptorSetLayout(&layout_info, nullptr, &m_descriptor_set_layout) != VK_SUCCESS)
+        throw std::runtime_error("Failed to create descriptor set layout!");
+}
+
+VkPipelineLayout Pipeline::get_pipeline_layout() {
+    return m_pipeline_layout;
+}
+
+VkDescriptorSetLayout Pipeline::get_descriptor_set_layout() {
+    return m_descriptor_set_layout;
 }
 }

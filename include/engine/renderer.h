@@ -8,6 +8,7 @@
 
 #include <engine/window.h>
 #include <engine/pipeline.h>
+#include <engine/models.h>
 
 const int MAX_FRAMES_IN_FLIGHT = 2;
 
@@ -39,9 +40,21 @@ private:
 
     void create_sync_objects();
     void draw_frame();
+    void recreate_swap_chain();
+    void cleanup_swapchain();
+    void create_buffer(VkDeviceSize buffer_size, uint32_t usage, uint32_t memory_props, VkBuffer &buffer, VkDeviceMemory  &buffer_memory);
+    void create_vertex_buffer();
+    void create_index_buffer();
+    void create_uniform_buffers();
+    void update_uniform_buffer(uint32_t current_image);
+    void create_descriptor_pool();
+    void create_descriptor_sets();
+
+    uint32_t find_memory_type(uint32_t filter, VkMemoryPropertyFlags props);
 
     Window m_window;
     vkb::Instance m_instance;
+    vkb::InstanceDispatchTable m_instance_dispatch;
     vkb::PhysicalDevice m_physical_device;
     vkb::Device m_device;
     vkb::DispatchTable m_dispatch;
@@ -62,6 +75,17 @@ private:
     std::vector<VkFence> m_in_flight_fences;
 
     uint32_t m_current_frame = 0;
+
+    VkBuffer m_vertex_buffer;
+    VkDeviceMemory m_vertex_buffer_memory;
+    VkBuffer m_index_buffer;
+    VkDeviceMemory m_index_buffer_memory;
+    std::vector<VkBuffer> m_uniform_buffers;
+    std::vector<VkDeviceMemory> m_uniform_buffers_memory;
+    std::vector<void*> m_uniform_buffers_mapped;
+
+    VkDescriptorPool m_descriptor_pool;
+    std::vector<VkDescriptorSet> m_descriptor_sets;
 };
 
 }

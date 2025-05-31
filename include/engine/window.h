@@ -9,9 +9,13 @@ namespace Engine {
 
 class Window {
 public:
+    bool m_frame_buffer_resized = false;
+
     void init_window();
     GLFWwindow* get_window();
     void cleanup();
+    static void framebuffer_resize_callback(GLFWwindow *window, int width, int height);
+
 
 private:
     GLFWwindow* m_window;

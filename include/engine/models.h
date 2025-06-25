@@ -2,6 +2,7 @@
 #include <glm/glm.hpp>
 #include <vulkan/vulkan.h>
 #include <iostream>
+#include <vector>
 
 #include <array>
 
@@ -20,9 +21,9 @@ struct Vertex {
         return binding_desc;
     }
 
-    static std::array<VkVertexInputAttributeDescription, 2> get_attribute_description() {
+    static std::vector<VkVertexInputAttributeDescription> get_attribute_description() {
 
-        std::array<VkVertexInputAttributeDescription, 2> attr_desc{};
+        std::vector<VkVertexInputAttributeDescription> attr_desc(2);
         attr_desc[0].binding = 0;
         attr_desc[0].location = 0;
         attr_desc[0].format = VK_FORMAT_R32G32B32_SFLOAT;

@@ -15,6 +15,10 @@ public:
     GLFWwindow* get_window();
     void cleanup();
     static void framebuffer_resize_callback(GLFWwindow *window, int width, int height);
+    
+    bool window_should_close() {
+        return glfwWindowShouldClose(m_window);
+    }
 
 
 private:

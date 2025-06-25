@@ -108,16 +108,28 @@ int main() {
 
     using clock = std::chrono::high_resolution_clock;
     auto previous_frame_time = clock::now();
+    float total_time = 0.0;
 
     while(device.begin_frame(current_frame, image_index, command_buffer)) {
+        auto current_time = clock::now();
+        float delta_time = std::chrono::duration<float>(current_time - previous_frame_time).count();
+        previous_frame_time = current_time;
+        total_time += delta_time;
+        
         if (false) {
-            auto current_time = clock::now();
-            float delta_time = std::chrono::duration<float>(current_time - previous_frame_time).count();
-            previous_frame_time = current_time;
-            
             double fps = delta_time > 0.0 ? 1.0 / delta_time: 0.0;
             fmt::println("{}", fps);
         }
+
+        Engine::UniformBufferObject ubo{};
+        ubo.model = glm::rotate(glm::mat4(1.f), total_time * glm::radians(90.f), glm::vec3(0.f, 0.f, 1.f));
+
+        ubo.view = glm::lookAt(glm::vec3(2.f, 2.f, 1.1f + sinf(total_time)), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 0.f, 1.f));
+
+        ubo.proj = glm::perspective(glm::radians(45.f), device.get_swapchain_extent().width / (float) device.get_swapchain_extent().height, 0.f, 10.f);
+
+        ubo.proj[1][1] *= -1;
+        device.update_buffer(first_uniform_buffer_idx + current_frame, &ubo, sizeof(ubo));
 
         VkRenderPassBeginInfo render_pass_info{};
         render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;

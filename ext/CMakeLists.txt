@@ -10,6 +10,7 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(vma)
 
+# GLFW
 set(GLFW_BUILD_DOCS OFF CACHE BOOL "GLFW docs" FORCE)
 FetchContent_Declare(
   glfw

@@ -1,11 +1,11 @@
 // #include <engine/pipeline.h>
-// #include <engine/graphics_device.h>
+// #include <engine/renderer.h>
 // #include <engine/models.h>
 // #include <iostream>
 
 // namespace Engine {
 // class DefaultPipeline: Pipeline {
-//     void create_pipeline(GraphicsDevice &device, VkFormat image_format) override {
+//     void create_pipeline(Renderer &device, VkFormat image_format) override {
 //         PipelineBuilder builder;
 
 //         std::vector<VkDescriptorSetLayout> layout = {device.get_descriptor_set_layout()};

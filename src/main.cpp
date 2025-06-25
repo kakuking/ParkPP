@@ -1,5 +1,5 @@
 #include <engine/pipeline.h>
-#include <engine/graphics_device.h>
+#include <engine/renderer.h>
 #include <engine/models.h>
 #include <iostream>
 
@@ -8,7 +8,7 @@
 
 namespace Engine {
 class DefaultPipeline: public Pipeline {
-    void create_pipeline(GraphicsDevice &device, VkFormat image_format) override {
+    void create_pipeline(Renderer &device, VkFormat image_format) override {
         PipelineBuilder builder;
         std::vector<VkDescriptorSetLayout> layout = {device.get_descriptor_set_layout()};
 
@@ -44,7 +44,7 @@ class DefaultPipeline: public Pipeline {
 
 int main() {    
     // Engine::Renderer renderer;
-    Engine::GraphicsDevice device;
+    Engine::Renderer device;
     Engine::DefaultPipeline pipeline;
     device.initialize_vulkan();
     
@@ -110,12 +110,14 @@ int main() {
     auto previous_frame_time = clock::now();
 
     while(device.begin_frame(current_frame, image_index, command_buffer)) {
-        auto current_time = clock::now();
-        float delta_time = std::chrono::duration<float>(current_time - previous_frame_time).count();
-        previous_frame_time = current_time;
-
-        float fps = delta_time > 0.0 ? 1.0 / delta_time: 0.0;
-        fmt::println("{}", fps);
+        if (false) {
+            auto current_time = clock::now();
+            float delta_time = std::chrono::duration<float>(current_time - previous_frame_time).count();
+            previous_frame_time = current_time;
+            
+            double fps = delta_time > 0.0 ? 1.0 / delta_time: 0.0;
+            fmt::println("{}", fps);
+        }
 
         VkRenderPassBeginInfo render_pass_info{};
         render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;

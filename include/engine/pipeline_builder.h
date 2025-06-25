@@ -4,10 +4,10 @@
 
 #include <engine/shaders.h>
 #include <engine/models.h>
-// #include <engine/graphics_device.h>
+// #include <engine/renderer.h>
 
 namespace Engine {
-class GraphicsDevice;
+class Renderer;
     
 struct PipelineData {
     VkPipeline pipeline;
@@ -18,9 +18,9 @@ struct PipelineData {
 
 class PipelineBuilder {
 public:
-    void create_pipeline_layout(GraphicsDevice &device, VkDescriptorSetLayout *descriptor_set_layout);
+    void create_pipeline_layout(Renderer &device, VkDescriptorSetLayout *descriptor_set_layout);
 
-    void set_shaders(GraphicsDevice &device, const std::string &vert_shader_filename, const std::string &frag_shader_filename);
+    void set_shaders(Renderer &device, const std::string &vert_shader_filename, const std::string &frag_shader_filename);
     
     void set_input_topology(VkPrimitiveTopology input_topology) { m_input_topology = input_topology; }
     void set_polygon_mode(VkPolygonMode polygon_mode) { m_polygon_mode = polygon_mode; }
@@ -39,7 +39,7 @@ public:
 
     void set_vertex_binding_and_attrs(VkVertexInputBindingDescription vertex_binding_desc, std::vector<VkVertexInputAttributeDescription> vertex_input_attr_desc) { m_vertex_binding_desc = vertex_binding_desc; m_vertex_input_attr_desc = vertex_input_attr_desc; }
     
-    PipelineData build(GraphicsDevice &device);
+    PipelineData build(Renderer &device);
 
     void create_render_pass(vkb::DispatchTable &dispatch, vkb::Swapchain swapchain);
 

@@ -1,11 +1,11 @@
-#include <engine/graphics_device.h>
+#include <engine/renderer.h>
 #include <engine/pipeline.h>
 
 #include <iostream>
 
 namespace Engine {
 
-void GraphicsDevice::initialize_vulkan() {
+void Renderer::initialize_vulkan() {
     // std::cout << "Creating window!\n";
     m_window.init_window();
     // std::cout << "Creating instancs!\n";
@@ -21,7 +21,7 @@ void GraphicsDevice::initialize_vulkan() {
     // create_pipeline();
 }
 
-void GraphicsDevice::initialize(
+void Renderer::initialize(
     std::vector<Pipeline*> pipelines,
     const std::vector<std::vector<uint32_t>>& uniform_buffer_indices,
     const std::vector<std::vector<uint32_t>>& uniform_buffer_sizes
@@ -53,7 +53,7 @@ void GraphicsDevice::initialize(
     create_sync_objects();
 }
 
-bool GraphicsDevice::begin_frame(int &current_frame, uint32_t &image_index, VkCommandBuffer &out_buffer) {
+bool Renderer::begin_frame(int &current_frame, uint32_t &image_index, VkCommandBuffer &out_buffer) {
     // std::cout << "Window should close\n";
     if (window_should_close())
         return false;
@@ -98,7 +98,7 @@ bool GraphicsDevice::begin_frame(int &current_frame, uint32_t &image_index, VkCo
     return true;
 }
 
-void GraphicsDevice::end_frame() {
+void Renderer::end_frame() {
     VkSubmitInfo submit_info{};
     submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     
@@ -142,7 +142,7 @@ void GraphicsDevice::end_frame() {
     m_current_frame = (m_current_frame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
-void GraphicsDevice::cleanup() {
+void Renderer::cleanup() {
     m_dispatch.deviceWaitIdle();
 
     // std::cout << "Cleaning up swapchain!\n";
@@ -183,7 +183,7 @@ void GraphicsDevice::cleanup() {
 }
 
 // If it is per-frame, create MAX_FRAMES_IN_FLIGHT copies of it, and send the idx of the first one :)
-size_t GraphicsDevice::create_buffer(VkDeviceSize buffer_size, uint32_t usage, uint32_t memory_props, bool per_frame) {
+size_t Renderer::create_buffer(VkDeviceSize buffer_size, uint32_t usage, uint32_t memory_props, bool per_frame) {
     size_t ret = m_buffers.size();
     uint32_t count = per_frame ? MAX_FRAMES_IN_FLIGHT : 1;
 
@@ -220,7 +220,7 @@ size_t GraphicsDevice::create_buffer(VkDeviceSize buffer_size, uint32_t usage, u
     return ret;
 }
 
-void GraphicsDevice::update_buffer(size_t buffer_idx, void* src_data, size_t src_data_size) {
+void Renderer::update_buffer(size_t buffer_idx, void* src_data, size_t src_data_size) {
     // VkBuffer &buffer = m_buffers[buffer_idx];
     VkDeviceMemory &buffer_memory = m_buffer_memories[buffer_idx];
     void* data;
@@ -230,7 +230,7 @@ void GraphicsDevice::update_buffer(size_t buffer_idx, void* src_data, size_t src
     m_dispatch.unmapMemory(buffer_memory);
 }
 
-void GraphicsDevice::destroy_buffer(int buffer_idx) {
+void Renderer::destroy_buffer(int buffer_idx) {
     if(buffer_idx >= m_buffers.size())
         throw std::runtime_error("The index of the buffer is outside range of indices");
 
@@ -241,7 +241,7 @@ void GraphicsDevice::destroy_buffer(int buffer_idx) {
         m_dispatch.destroyBuffer(buffer, nullptr);
 }
 
-void GraphicsDevice::destroy_pipeline(int pipeline_idx) {
+void Renderer::destroy_pipeline(int pipeline_idx) {
     if(pipeline_idx >= m_pipelines.size())
         throw std::runtime_error("The index of the pipeline is outside range of indices");
     
@@ -249,7 +249,7 @@ void GraphicsDevice::destroy_pipeline(int pipeline_idx) {
     pipeline->destroy_pipeline(m_dispatch);
 }
 
-void GraphicsDevice::create_instance() {
+void Renderer::create_instance() {
     // Get extensions
     // std::cout << "Getting extns\n";
     uint32_t glfw_extn_count = 0;
@@ -291,13 +291,13 @@ void GraphicsDevice::create_instance() {
     m_instance_dispatch = m_instance.make_table();
 }
 
-void GraphicsDevice::create_surface() {
+void Renderer::create_surface() {
     VkResult res = glfwCreateWindowSurface(m_instance, m_window.get_window(), nullptr, &m_surface);
     if(res != VK_SUCCESS)
         throw std::runtime_error("Failed to create a window surface!");
 }
 
-void GraphicsDevice::pick_physical_device() {
+void Renderer::pick_physical_device() {
     vkb::PhysicalDeviceSelector selector(m_instance);
 
     // Here you would ask for requirements normally
@@ -311,7 +311,7 @@ void GraphicsDevice::pick_physical_device() {
     m_physical_device = selector_ret.value();
 }
 
-void GraphicsDevice::create_logical_device() {
+void Renderer::create_logical_device() {
     vkb::DeviceBuilder builder(m_physical_device);
     auto builder_ret = builder.build();
     if(!builder_ret)
@@ -345,7 +345,7 @@ void GraphicsDevice::create_logical_device() {
     m_present_queue_idx = present_queue_idx_ret.value();
 }
 
-void GraphicsDevice::create_swapchains() {
+void Renderer::create_swapchains() {
     vkb::SwapchainBuilder builder(m_device);
 
     auto swapchain_ret = builder.build();
@@ -367,7 +367,7 @@ void GraphicsDevice::create_swapchains() {
     m_swapchain_image_views = swapchain_image_views_ret.value();
 }
 
-void GraphicsDevice::create_framebuffers() {
+void Renderer::create_framebuffers() {
     m_swapchain_framebuffers.resize(m_swapchain_image_views.size());
 
     for(size_t i = 0; i < m_swapchain_image_views.size(); i++) {
@@ -389,7 +389,7 @@ void GraphicsDevice::create_framebuffers() {
     }
 }
 
-void GraphicsDevice::create_command_pool() {
+void Renderer::create_command_pool() {
     VkCommandPoolCreateInfo info{};
     info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
     info.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
@@ -399,7 +399,7 @@ void GraphicsDevice::create_command_pool() {
         throw std::runtime_error("Failed to create command pool");
 }
 
-void GraphicsDevice::create_command_buffer() {
+void Renderer::create_command_buffer() {
     m_command_buffers.resize(MAX_FRAMES_IN_FLIGHT);
 
     VkCommandBufferAllocateInfo info{};
@@ -412,7 +412,7 @@ void GraphicsDevice::create_command_buffer() {
         throw std::runtime_error("Could not allocate command buffer");
 }
 
-void GraphicsDevice::recreate_swap_chain() {
+void Renderer::recreate_swap_chain() {
     int width = 0, height = 0;
     glfwGetFramebufferSize(m_window.get_window(), &width, &height);
     while(width == 0 || height == 0) {
@@ -427,7 +427,7 @@ void GraphicsDevice::recreate_swap_chain() {
     create_framebuffers();
 }
 
-void GraphicsDevice::cleanup_swapchain() {
+void Renderer::cleanup_swapchain() {
     for(auto framebuffer: m_swapchain_framebuffers)
         m_dispatch.destroyFramebuffer(framebuffer, nullptr);
 
@@ -435,7 +435,7 @@ void GraphicsDevice::cleanup_swapchain() {
     vkb::destroy_swapchain(m_swapchain);
 }
 
-void GraphicsDevice::create_descriptor_pool() {
+void Renderer::create_descriptor_pool() {
     VkDescriptorPoolSize pool_size{};
     pool_size.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     pool_size.descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
@@ -450,7 +450,7 @@ void GraphicsDevice::create_descriptor_pool() {
         throw std::runtime_error("Failed to create a descriptor pool!");
 }
 
-uint32_t GraphicsDevice::find_memory_type(uint32_t filter, VkMemoryPropertyFlags props) {
+uint32_t Renderer::find_memory_type(uint32_t filter, VkMemoryPropertyFlags props) {
     VkPhysicalDeviceMemoryProperties mem_prop;
     m_instance_dispatch.getPhysicalDeviceMemoryProperties(m_physical_device, &mem_prop);
 
@@ -461,7 +461,7 @@ uint32_t GraphicsDevice::find_memory_type(uint32_t filter, VkMemoryPropertyFlags
     throw std::runtime_error("Failed to find suitable memory type!");
 }
 
-void GraphicsDevice::create_sync_objects() {
+void Renderer::create_sync_objects() {
     m_image_available_semaphores.resize(MAX_FRAMES_IN_FLIGHT);
     m_render_finished_semaphores.resize(MAX_FRAMES_IN_FLIGHT);
     m_in_flight_fences.resize(MAX_FRAMES_IN_FLIGHT);
@@ -483,11 +483,11 @@ void GraphicsDevice::create_sync_objects() {
     
 }
 
-bool GraphicsDevice::window_should_close() {
+bool Renderer::window_should_close() {
     return m_window.window_should_close();
 }
 
-void GraphicsDevice::create_descriptor_set_layout() {
+void Renderer::create_descriptor_set_layout() {
 
     // VkDescriptorSetLayoutBinding ubo_layout_binding{};
     // ubo_layout_binding.binding = 0;
@@ -507,7 +507,7 @@ void GraphicsDevice::create_descriptor_set_layout() {
 }
 
 // [binding][frame]
-void GraphicsDevice::create_descriptor_sets(
+void Renderer::create_descriptor_sets(
     const std::vector<std::vector<uint32_t>>& uniform_buffer_indices, 
     const std::vector<std::vector<uint32_t>>& uniform_buffer_sizes
 ) {

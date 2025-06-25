@@ -1,9 +1,9 @@
 #include <engine/pipeline_builder.h>
-#include <engine/graphics_device.h>
+#include <engine/renderer.h>
 
 namespace Engine {
 
-PipelineData PipelineBuilder::build(GraphicsDevice &device) {
+PipelineData PipelineBuilder::build(Renderer &device) {
     // std::cout << "Creating shader stages\n";
     VkPipelineShaderStageCreateInfo shader_stages[] = {
         m_vert_shader.get_shader_stage_create_info(),
@@ -63,7 +63,7 @@ PipelineData PipelineBuilder::build(GraphicsDevice &device) {
     return ret;
 }
 
-void PipelineBuilder::create_pipeline_layout(GraphicsDevice &device, VkDescriptorSetLayout *descriptor_set_layouts) {
+void PipelineBuilder::create_pipeline_layout(Renderer &device, VkDescriptorSetLayout *descriptor_set_layouts) {
     VkPipelineLayoutCreateInfo info{};
     info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     info.setLayoutCount = 1;
@@ -76,7 +76,7 @@ void PipelineBuilder::create_pipeline_layout(GraphicsDevice &device, VkDescripto
         throw std::runtime_error("Could not create pipeline layout");    
 }
 
-void PipelineBuilder::set_shaders(GraphicsDevice &device, const std::string &vert_shader_filename, const std::string &frag_shader_filename) {
+void PipelineBuilder::set_shaders(Renderer &device, const std::string &vert_shader_filename, const std::string &frag_shader_filename) {
     // std::cout << "Creating vertex shader\n";
     m_vert_shader.create_shader(device.m_dispatch, vert_shader_filename, VK_SHADER_STAGE_VERTEX_BIT);
     // std::cout << "Creating frag shader\n";
@@ -231,6 +231,6 @@ VkPipelineColorBlendStateCreateInfo PipelineBuilder::get_color_blend_state(VkPip
     return color_blending;
 }
 
-VkPipeline build(GraphicsDevice &device);
+VkPipeline build(Renderer &device);
 
 }

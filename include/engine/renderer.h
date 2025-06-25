@@ -21,7 +21,7 @@ const int MAX_FRAMES_IN_FLIGHT = 2;
 namespace Engine {
 class Pipeline;
 
-class GraphicsDevice {
+class Renderer {
 public:
 
     // Call this first
@@ -60,8 +60,6 @@ public:
     VkDescriptorSet get_descriptor_set(int idx) { return m_descriptor_sets[idx]; }
     vkb::Swapchain get_swapchain() { return m_swapchain; }
 private:
-
-    // void loop();
 
     void create_instance();
     void create_surface();

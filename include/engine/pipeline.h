@@ -4,14 +4,14 @@
 
 #include <engine/shaders.h>
 #include <engine/pipeline_builder.h>
-// #include <engine/graphics_device.h>
+// #include <engine/renderer.h>
 
 namespace Engine {
-class GraphicsDevice;
+class Renderer;
 
 class Pipeline {
 public:
-    virtual void create_pipeline(GraphicsDevice &device, VkFormat image_format) = 0;
+    virtual void create_pipeline(Renderer &device, VkFormat image_format) = 0;
     virtual void destroy_pipeline(vkb::DispatchTable &dispatch_table) = 0;
 
     VkRenderPass get_render_pass() { return m_data.render_pass; }

@@ -13,7 +13,6 @@
 #define VMA_DYNAMIC_VULKAN_FUNCTIONS 1
 #include <vk_mem_alloc.h>
 
-// #include <engine/pipeline.h>
 #include <engine/window.h>
 
 const int MAX_FRAMES_IN_FLIGHT = 2;

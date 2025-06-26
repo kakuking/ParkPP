@@ -10,6 +10,7 @@ namespace Engine {
 class Window {
 public:
     bool m_frame_buffer_resized = false;
+    int current_width = WIDTH, current_height = HEIGHT;
 
     void init_window();
     GLFWwindow* get_window();

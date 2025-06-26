@@ -1,4 +1,5 @@
 #include <engine/window.h>
+
 #include <iostream>
 
 namespace Engine {
@@ -19,7 +20,10 @@ void Window::init_window() {
 
 void Window::framebuffer_resize_callback(GLFWwindow *window, int width, int height) {
     auto* self = static_cast<Window*>(glfwGetWindowUserPointer(window));
+    
     self->m_frame_buffer_resized = true;
+    self->current_width = width;
+    self->current_height = height;
 }
 
 GLFWwindow* Window::get_window() {

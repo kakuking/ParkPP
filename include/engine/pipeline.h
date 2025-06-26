@@ -2,9 +2,7 @@
 #include <vulkan/vulkan.h>
 #include <VkBootstrap.h>
 
-#include <engine/shaders.h>
 #include <engine/pipeline_builder.h>
-// #include <engine/renderer.h>
 
 namespace Engine {
 class Renderer;

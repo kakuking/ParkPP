@@ -1,12 +1,12 @@
 #pragma once
 #include <glm/glm.hpp>
 #include <vulkan/vulkan.h>
+
 #include <iostream>
 #include <vector>
-
 #include <array>
 
-namespace Engine {
+namespace Game {
 struct Vertex {
     glm::vec3 pos;
     glm::vec3 color;
@@ -45,14 +45,28 @@ struct UniformBufferObject {
 };
 
 const std::vector<Vertex> vertices = {
-    {{-0.5f, -0.5f, 0.0f}, {1.f, 0.f, 0.f}},
-    {{0.5f, -0.5f, 0.0f}, {0.f, 1.f, 0.f}},
-    {{0.5f, 0.5f, 0.0f}, {0.f, 0.f, 1.f}},
-    {{-0.5f, 0.5f, 0.0f}, {1.f, 1.f, 1.f}},
+    // Base square (z = 0)
+    {{-0.5f, -0.5f, 0.0f}, {1.f, 0.f, 0.f}}, // 0
+    {{0.5f, -0.5f, 0.0f},  {0.f, 1.f, 0.f}}, // 1
+    {{0.5f,  0.5f, 0.0f},  {0.f, 0.f, 1.f}}, // 2
+    {{-0.5f,  0.5f, 0.0f}, {1.f, 1.f, 1.f}}, // 3
+
+    // Apex vertex (z = 0.5)
+    {{0.0f, 0.0f, 0.5f},   {1.f, 1.f, 0.f}}, // 4
 };
 
 const std::vector<uint16_t> indices = {
-    0, 1, 2, 2, 3, 0
+    // Base (2 triangles)
+    // 0, 1, 2,
+    // 2, 3, 0,
+    2, 1, 0,
+    0, 3, 2,
+
+    // Side faces (each triangle connects to apex)
+    0, 1, 4, // front
+    1, 2, 4, // right
+    2, 3, 4, // back
+    3, 0, 4, // left
 };
 
 }

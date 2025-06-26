@@ -3,8 +3,6 @@
 #include <VkBootstrap.h>
 
 #include <engine/shaders.h>
-#include <engine/models.h>
-// #include <engine/renderer.h>
 
 namespace Engine {
 class Renderer;

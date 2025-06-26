@@ -1,71 +1,41 @@
 #include <engine/pipeline.h>
 #include <engine/renderer.h>
-#include <engine/models.h>
-#include <iostream>
 
-#include <chrono>
+#include <game/default_pipeline.h>
+#include <game/models.h>
+
 #include <fmt/format.h>
 
-namespace Engine {
-class DefaultPipeline: public Pipeline {
-    void create_pipeline(Renderer &device, VkFormat image_format) override {
-        PipelineBuilder builder;
-        std::vector<VkDescriptorSetLayout> layout = {device.get_descriptor_set_layout()};
-
-        builder.create_pipeline_layout(device, layout.data());
-
-        builder.create_render_pass(device.m_dispatch, device.get_swapchain());
-        
-        builder.set_shaders(device, "shaders/shader.vert.spv", "shaders/shader.frag.spv");
-        builder.set_input_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-        builder.set_polygon_mode(VK_POLYGON_MODE_FILL);
-        builder.set_color_attachment_format(image_format);
-        builder.enable_culling(VK_CULL_MODE_BACK_BIT);
-        builder.disable_blending();
-        builder.disable_depth_test();
-
-        auto bind_desc = Vertex::get_binding_description();
-        auto attr_desc = Vertex::get_attribute_description();
-
-        builder.set_vertex_binding_and_attrs(bind_desc, attr_desc);
-
-        m_data = builder.build(device);
-    }
-
-    void destroy_pipeline(vkb::DispatchTable &dispatch_table) override {
-        m_data.frag_shader.destroy_shader(dispatch_table);
-        m_data.vert_shader.destroy_shader(dispatch_table);
-        dispatch_table.destroyRenderPass(m_data.render_pass, nullptr);
-        dispatch_table.destroyPipelineLayout(m_data.pipeline_layout, nullptr);
-        dispatch_table.destroyPipeline(m_data.pipeline, nullptr);
-    }
-};
-}
+#include <iostream>
+#include <chrono>
 
 int main() {    
     // Engine::Renderer renderer;
     Engine::Renderer device;
-    Engine::DefaultPipeline pipeline;
+    Game::DefaultPipeline pipeline;
     device.initialize_vulkan();
+
+    const std::vector<Game::Vertex> &vertices = Game::vertices;
+    const std::vector<uint16_t> &indices = Game::indices;
     
-    size_t vb_size = sizeof(Engine::vertices[0]) * Engine::vertices.size();
+    size_t vb_size = sizeof(vertices[0]) * vertices.size();
     uint32_t v_usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
     uint32_t memory_props = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
 
     size_t vertex_buffer_idx = device.create_buffer(vb_size, v_usage, memory_props);
 
-    size_t ib_size = sizeof(Engine::indices[0]) * Engine::indices.size();
+    size_t ib_size = sizeof(indices[0]) * indices.size();
     uint32_t i_usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
     size_t index_buffer_idx = device.create_buffer(ib_size, i_usage, memory_props);
 
-    size_t ub_size = sizeof(Engine::UniformBufferObject);
+    size_t ub_size = sizeof(Game::UniformBufferObject);
     uint32_t u_usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
     size_t first_uniform_buffer_idx = device.create_buffer(ub_size, u_usage, memory_props, true);
     
-    device.update_buffer(vertex_buffer_idx, (void*)Engine::vertices.data(), vb_size);
-    device.update_buffer(index_buffer_idx, (void*)Engine::indices.data(), ib_size);
+    device.update_buffer(vertex_buffer_idx, (void*)vertices.data(), vb_size);
+    device.update_buffer(index_buffer_idx, (void*)indices.data(), ib_size);
     for(int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-        Engine::UniformBufferObject ubo{};
+        Game::UniformBufferObject ubo{};
         ubo.model = glm::rotate(glm::mat4(1.f), glm::radians(90.f), glm::vec3(0.f, 0.f, 1.f));
 
         ubo.view = glm::lookAt(glm::vec3(2.f, 2.f, 2.f), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 0.f, 1.f));
@@ -121,7 +91,7 @@ int main() {
             fmt::println("{}", fps);
         }
 
-        Engine::UniformBufferObject ubo{};
+        Game::UniformBufferObject ubo{};
         ubo.model = glm::rotate(glm::mat4(1.f), total_time * glm::radians(90.f), glm::vec3(0.f, 0.f, 1.f));
 
         ubo.view = glm::lookAt(glm::vec3(2.f, 2.f, 1.1f + sinf(total_time)), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 0.f, 1.f));
@@ -172,7 +142,7 @@ int main() {
         VkDescriptorSet cur_ds = device.get_descriptor_set(current_frame);
         device.m_dispatch.cmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.get_pipeline_layout(), 0, 1, &cur_ds, 0, nullptr);
 
-        device.m_dispatch.cmdDrawIndexed(command_buffer, static_cast<uint32_t>(Engine::indices.size()), 1, 0, 0, 0);
+        device.m_dispatch.cmdDrawIndexed(command_buffer, static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
 
         device.m_dispatch.cmdEndRenderPass(command_buffer);
 

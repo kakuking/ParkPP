@@ -9,7 +9,9 @@
 namespace Game {
 struct Vertex {
     glm::vec3 pos;
+    float u;
     glm::vec3 color;
+    float v;
 
     static VkVertexInputBindingDescription get_binding_description() {
 
@@ -23,7 +25,7 @@ struct Vertex {
 
     static std::vector<VkVertexInputAttributeDescription> get_attribute_description() {
 
-        std::vector<VkVertexInputAttributeDescription> attr_desc(2);
+        std::vector<VkVertexInputAttributeDescription> attr_desc(4);
         attr_desc[0].binding = 0;
         attr_desc[0].location = 0;
         attr_desc[0].format = VK_FORMAT_R32G32B32_SFLOAT;
@@ -31,8 +33,18 @@ struct Vertex {
 
         attr_desc[1].binding = 0;
         attr_desc[1].location = 1;
-        attr_desc[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-        attr_desc[1].offset = offsetof(Vertex, color);
+        attr_desc[1].format = VK_FORMAT_R32_SFLOAT;
+        attr_desc[1].offset = offsetof(Vertex, u);
+        
+        attr_desc[2].binding = 0;
+        attr_desc[2].location = 2;
+        attr_desc[2].format = VK_FORMAT_R32G32B32_SFLOAT;
+        attr_desc[2].offset = offsetof(Vertex, color);
+        
+        attr_desc[3].binding = 0;
+        attr_desc[3].location = 3;
+        attr_desc[3].format = VK_FORMAT_R32_SFLOAT;
+        attr_desc[3].offset = offsetof(Vertex, v);
 
         return attr_desc;
     }
@@ -46,13 +58,13 @@ struct UniformBufferObject {
 
 const std::vector<Vertex> vertices = {
     // Base square (z = 0)
-    {{-0.5f, -0.5f, 0.0f}, {1.f, 0.f, 0.f}}, // 0
-    {{0.5f, -0.5f, 0.0f},  {0.f, 1.f, 0.f}}, // 1
-    {{0.5f,  0.5f, 0.0f},  {0.f, 0.f, 1.f}}, // 2
-    {{-0.5f,  0.5f, 0.0f}, {1.f, 1.f, 1.f}}, // 3
+    {{-0.5f, -0.5f, 0.0f},  1.f,    {1.f, 0.f, 0.f},    0.f}, // 0
+    {{0.5f, -0.5f, 0.0f},   0.f,    {0.f, 1.f, 0.f},    0.f}, // 1
+    {{0.5f,  0.5f, 0.0f},   0.f,    {0.f, 0.f, 1.f},    1.f}, // 2
+    {{-0.5f,  0.5f, 0.0f},  1.f,    {1.f, 1.f, 1.f},    1.f}, // 3
 
     // Apex vertex (z = 0.5)
-    {{0.0f, 0.0f, 0.5f},   {1.f, 1.f, 0.f}}, // 4
+    {{0.0f, 0.0f, 0.5f},    .5f,    {1.f, 1.f, 0.f},    .5f}, // 4
 };
 
 const std::vector<uint16_t> indices = {

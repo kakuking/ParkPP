@@ -1,6 +1,8 @@
 #include <engine/renderer.h>
 #include <engine/pipeline.h>
 
+#include <engine/texture.h>
+
 #include <iostream>
 
 namespace Engine {
@@ -29,6 +31,11 @@ void Renderer::initialize(
     // std::cout << "setting pipelines window!\n";
     m_pipelines = pipelines;
 
+    create_command_pool();
+
+    for(Texture &tex: m_textures)
+        tex.create_texture_image(*this);
+
     // std::cout << "Creating desc pool!\n";
     create_descriptor_pool();
     // std::cout << "Creating desc set layout!\n";
@@ -45,9 +52,7 @@ void Renderer::initialize(
 
     // std::cout << "Creating fbs!\n";
     create_framebuffers();
-    // std::cout << "Creating cps!\n";
-    create_command_pool();
-    // std::cout << "Creating cbs!\n";
+
     create_command_buffer();
     // std::cout << "Creating sos!\n";
     create_sync_objects();
@@ -152,6 +157,9 @@ void Renderer::cleanup() {
     // std::cout << "Cleaning up dsl\n";
     m_dispatch.destroyDescriptorSetLayout(m_descriptor_set_layout, nullptr);
 
+    for(int i = 0; i < m_textures.size(); i++)
+        m_textures[i].cleanup(m_dispatch);
+
     // std::cout << "Cleaning up b\n";
     // destroy buffers
     for(int i = 0; i < m_buffers.size(); i++)
@@ -180,6 +188,7 @@ void Renderer::cleanup() {
     vkb::destroy_instance(m_instance);
     // std::cout << "Cleaning up widnow\n";
     m_window.cleanup();
+
 }
 
 // If it is per-frame, create MAX_FRAMES_IN_FLIGHT copies of it, and send the idx of the first one :)
@@ -241,6 +250,39 @@ void Renderer::destroy_buffer(int buffer_idx) {
         m_dispatch.destroyBuffer(buffer, nullptr);
 }
 
+VkCommandBuffer Renderer::begin_single_time_command() {
+    VkCommandBufferAllocateInfo alloc_info{};
+    alloc_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    alloc_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    alloc_info.commandPool = m_command_pool;
+    alloc_info.commandBufferCount = 1;
+
+    VkCommandBuffer command_buffer;
+    m_dispatch.allocateCommandBuffers(&alloc_info, &command_buffer);
+
+    VkCommandBufferBeginInfo begin_info{};
+    begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+    m_dispatch.beginCommandBuffer(command_buffer, &begin_info);
+
+    return command_buffer;
+}
+
+void Renderer::end_single_time_command(VkCommandBuffer command_buffer) {
+    m_dispatch.endCommandBuffer(command_buffer);
+
+    VkSubmitInfo submit_info{};
+    submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submit_info.commandBufferCount = 1;
+    submit_info.pCommandBuffers = &command_buffer;
+
+    m_dispatch.queueSubmit(m_graphics_queue, 1, &submit_info, VK_NULL_HANDLE);
+    m_dispatch.queueWaitIdle(m_graphics_queue);
+
+    m_dispatch.freeCommandBuffers(m_command_pool, 1, &command_buffer);
+}
+
 void Renderer::destroy_pipeline(int pipeline_idx) {
     if(pipeline_idx >= m_pipelines.size())
         throw std::runtime_error("The index of the pipeline is outside range of indices");
@@ -289,6 +331,7 @@ void Renderer::create_instance() {
 
     m_instance = instance_ret.value();
     m_instance_dispatch = m_instance.make_table();
+
 }
 
 void Renderer::create_surface() {
@@ -300,8 +343,11 @@ void Renderer::create_surface() {
 void Renderer::pick_physical_device() {
     vkb::PhysicalDeviceSelector selector(m_instance);
 
+    VkPhysicalDeviceFeatures required_features{};
+    required_features.samplerAnisotropy = VK_TRUE;
+
     // Here you would ask for requirements normally
-    auto selector_ret = selector.require_present().set_surface(m_surface).select();
+    auto selector_ret = selector.require_present().set_required_features(required_features).set_surface(m_surface).select();
 
     if(!selector_ret) {
         std::cout << "Error: " << selector_ret.error() << "\n\n";
@@ -309,6 +355,8 @@ void Renderer::pick_physical_device() {
     }
     
     m_physical_device = selector_ret.value();
+    
+    m_instance_dispatch.getPhysicalDeviceProperties(m_physical_device, &m_physical_device_properties);
 }
 
 void Renderer::create_logical_device() {
@@ -412,6 +460,38 @@ void Renderer::create_command_buffer() {
         throw std::runtime_error("Could not allocate command buffer");
 }
 
+void Renderer::copy_buffer_to_image(size_t buffer_idx, VkImage &image, uint32_t width, uint32_t height) {
+    VkCommandBuffer command_buffer = begin_single_time_command();
+
+    VkBufferImageCopy region{};
+    region.bufferOffset = 0;
+    region.bufferRowLength = 0;
+    region.bufferImageHeight = 0;
+
+    region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    region.imageSubresource.mipLevel = 0;
+    region.imageSubresource.baseArrayLayer = 0;
+    region.imageSubresource.layerCount = 1;
+
+    region.imageOffset = {0, 0, 0};
+    region.imageExtent = {
+        width,
+        height,
+        1
+    };
+
+    m_dispatch.cmdCopyBufferToImage(
+        command_buffer,
+        m_buffers[buffer_idx],
+        image,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        1,
+        &region
+    );
+
+    end_single_time_command(command_buffer);
+}
+
 void Renderer::recreate_swap_chain() {
     int width = 0, height = 0;
     glfwGetFramebufferSize(m_window.get_window(), &width, &height);
@@ -435,16 +515,19 @@ void Renderer::cleanup_swapchain() {
     vkb::destroy_swapchain(m_swapchain);
 }
 
+// TODO - add functionality for pool to automatically be size of descriptors added
 void Renderer::create_descriptor_pool() {
-    VkDescriptorPoolSize pool_size{};
-    pool_size.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    pool_size.descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+    std::vector<VkDescriptorPoolSize> pool_sizes(2, {});
+    pool_sizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    pool_sizes[0].descriptorCount = static_cast<uint32_t>(num_buffer_descriptor_sets * MAX_FRAMES_IN_FLIGHT);
+    pool_sizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    pool_sizes[1].descriptorCount = static_cast<uint32_t>(num_image_descriptor_sets * MAX_FRAMES_IN_FLIGHT);
 
     VkDescriptorPoolCreateInfo pool_info{};
     pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    pool_info.poolSizeCount = 1;
-    pool_info.pPoolSizes = &pool_size;
-    pool_info.maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+    pool_info.poolSizeCount = static_cast<uint32_t>(pool_sizes.size());
+    pool_info.pPoolSizes = pool_sizes.data();
+    pool_info.maxSets = static_cast<uint32_t>((num_buffer_descriptor_sets + num_image_descriptor_sets) * MAX_FRAMES_IN_FLIGHT);
 
     if(m_dispatch.createDescriptorPool(&pool_info, nullptr, &m_descriptor_pool) != VK_SUCCESS)
         throw std::runtime_error("Failed to create a descriptor pool!");
@@ -460,6 +543,23 @@ uint32_t Renderer::find_memory_type(uint32_t filter, VkMemoryPropertyFlags props
     
     throw std::runtime_error("Failed to find suitable memory type!");
 }
+
+void Renderer::add_texture(std::string filename, uint32_t binding) {
+    Texture tex;
+    tex.init_texture(filename);
+    // tex.create_texture_image(*this, filename);
+    m_textures.push_back(tex);
+
+    VkDescriptorSetLayoutBinding texture_layout_binding{};
+    texture_layout_binding.binding = binding;
+    texture_layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    texture_layout_binding.descriptorCount = 1;
+    texture_layout_binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    texture_layout_binding.pImmutableSamplers = nullptr;
+
+    add_descriptor_set_layout_binding(texture_layout_binding, 0);
+}
+
 
 void Renderer::create_sync_objects() {
     m_image_available_semaphores.resize(MAX_FRAMES_IN_FLIGHT);
@@ -485,6 +585,15 @@ void Renderer::create_sync_objects() {
 
 bool Renderer::window_should_close() {
     return m_window.window_should_close();
+}
+
+void Renderer::add_descriptor_set_layout_binding(VkDescriptorSetLayoutBinding binding, VkDescriptorBindingFlags binding_flag) { 
+    m_descriptor_bindings.push_back(binding); 
+    m_descriptor_binding_flags.push_back(binding_flag); 
+    if (binding.descriptorType == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER)
+        num_buffer_descriptor_sets++;
+    else if(binding.descriptorType == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+        num_image_descriptor_sets++;
 }
 
 void Renderer::create_descriptor_set_layout() {
@@ -523,13 +632,15 @@ void Renderer::create_descriptor_sets(
     if (m_dispatch.allocateDescriptorSets(&alloc_info, m_descriptor_sets.data()) != VK_SUCCESS)
         throw std::runtime_error("Failed to allocate descriptor sets!");
 
-    const size_t num_bindings = uniform_buffer_indices.size();
+    const size_t num_uniform_buffer_bindings = uniform_buffer_indices.size();
+    const size_t num_images = m_textures.size();
 
     for (size_t frame = 0; frame < MAX_FRAMES_IN_FLIGHT; ++frame) {
         std::vector<VkWriteDescriptorSet> descriptor_writes;
-        std::vector<VkDescriptorBufferInfo> buffer_infos(num_bindings); // needs to persist per frame
+        std::vector<VkDescriptorBufferInfo> buffer_infos(num_uniform_buffer_bindings); // needs to persist per frame
+        std::vector<VkDescriptorImageInfo> image_infos(num_images); // needs to persist per frame
 
-        for (size_t binding = 0; binding < num_bindings; ++binding) {
+        for (size_t binding = 0; binding < num_uniform_buffer_bindings; ++binding) {
             buffer_infos[binding].buffer = m_buffers[uniform_buffer_indices[binding][frame]];
             buffer_infos[binding].offset = 0;
             buffer_infos[binding].range = uniform_buffer_sizes[binding][frame];
@@ -542,6 +653,23 @@ void Renderer::create_descriptor_sets(
             descriptor_write.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
             descriptor_write.descriptorCount = 1;
             descriptor_write.pBufferInfo = &buffer_infos[binding];
+
+            descriptor_writes.push_back(descriptor_write);
+        }
+
+        for(size_t binding = 0; binding < num_images; binding++) {
+            image_infos[binding].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            image_infos[binding].imageView = m_textures[binding].get_image_view();
+            image_infos[binding].sampler = m_textures[binding].get_sampler();
+
+            VkWriteDescriptorSet descriptor_write{};
+            descriptor_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            descriptor_write.dstSet = m_descriptor_sets[frame];
+            descriptor_write.dstBinding = static_cast<uint32_t>(binding + num_uniform_buffer_bindings);
+            descriptor_write.dstArrayElement = 0;
+            descriptor_write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            descriptor_write.descriptorCount = 1;
+            descriptor_write.pImageInfo = &image_infos[binding];
 
             descriptor_writes.push_back(descriptor_write);
         }

@@ -15,10 +15,13 @@
 
 #include <engine/window.h>
 
+#include <engine/texture.h>
+
 const int MAX_FRAMES_IN_FLIGHT = 2;
 
 namespace Engine {
 class Pipeline;
+class Texture;
 
 class Renderer {
 public:
@@ -43,13 +46,19 @@ public:
     // Returns the index of the created buffer
     size_t create_buffer(VkDeviceSize buffer_size, uint32_t usage, uint32_t memory_props, bool per_frame=false);
     void update_buffer(size_t buffer_idx, void* src_data, size_t src_data_size);
-    
-    // Add all desc sets 
-    void add_descriptor_set_layout_binding(VkDescriptorSetLayoutBinding binding, VkDescriptorBindingFlags binding_flag) { m_descriptor_bindings.push_back(binding); m_descriptor_binding_flags.push_back(binding_flag); }
+
+    void add_descriptor_set_layout_binding(VkDescriptorSetLayoutBinding binding, VkDescriptorBindingFlags binding_flag);
     
     VkDescriptorSetLayout get_descriptor_set_layout() { return m_descriptor_set_layout; }
     
     vkb::DispatchTable m_dispatch;
+
+    VkCommandBuffer begin_single_time_command();
+    void end_single_time_command(VkCommandBuffer command_buffer);
+
+    void copy_buffer_to_image(size_t buffer_idx, VkImage &image, uint32_t width, uint32_t height);
+
+    void add_texture(std::string filename, uint32_t binding);
 
     bool window_should_close();
     VkRenderPass get_render_pass() { return m_render_pass; }
@@ -58,6 +67,9 @@ public:
     VkBuffer get_buffer(size_t idx) { return m_buffers[idx]; }
     VkDescriptorSet get_descriptor_set(int idx) { return m_descriptor_sets[idx]; }
     vkb::Swapchain get_swapchain() { return m_swapchain; }
+    uint32_t find_memory_type(uint32_t filter, VkMemoryPropertyFlags props);
+    VkPhysicalDeviceProperties get_physical_device_properties() { return m_physical_device_properties; }
+
 private:
 
     void create_instance();
@@ -86,13 +98,12 @@ private:
 
     void destroy_buffer(int buffer_idx);
     void destroy_pipeline(int pipeline_idx);
-
-    uint32_t find_memory_type(uint32_t filter, VkMemoryPropertyFlags props);
     
     // Vulkan context
     vkb::Instance m_instance;
     vkb::InstanceDispatchTable m_instance_dispatch;
     vkb::PhysicalDevice m_physical_device;
+    VkPhysicalDeviceProperties m_physical_device_properties;
     vkb::Device m_device;
 
     // Queues
@@ -117,12 +128,15 @@ private:
     std::vector<VkDescriptorBindingFlags> m_descriptor_binding_flags;
     VkDescriptorSetLayout m_descriptor_set_layout;
     std::vector<VkDescriptorSet> m_descriptor_sets;
+    uint32_t num_buffer_descriptor_sets = 0, num_image_descriptor_sets = 0;
 
     // buffers and buffer_memories
     std::vector<VkBuffer> m_buffers;
     std::vector<VkDeviceMemory> m_buffer_memories;
 
     std::vector<Pipeline*> m_pipelines;
+
+    std::vector<Texture> m_textures;
 
     // Window object
     Window m_window;

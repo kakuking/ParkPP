@@ -56,6 +56,8 @@ int main() {
     VkDescriptorBindingFlags ubo_binding_flags = 0; 
     device.add_descriptor_set_layout_binding(ubo_layout_binding, ubo_binding_flags);
 
+    device.add_texture("textures/checkerboard.jpg", 1);
+
     std::vector<Engine::Pipeline*> pipelines = {&pipeline};
     std::vector<std::vector<uint32_t>> uniform_buffer_indices;
     std::vector<std::vector<uint32_t>> uniform_buffer_sizes;
@@ -94,7 +96,7 @@ int main() {
         Game::UniformBufferObject ubo{};
         ubo.model = glm::rotate(glm::mat4(1.f), total_time * glm::radians(90.f), glm::vec3(0.f, 0.f, 1.f));
 
-        ubo.view = glm::lookAt(glm::vec3(2.f, 2.f, 1.1f + sinf(total_time)), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 0.f, 1.f));
+        ubo.view = glm::lookAt(glm::vec3(2.f, 2.f * cosf(total_time),  2.f * sinf(total_time)), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 0.f, 1.f));
 
         ubo.proj = glm::perspective(glm::radians(45.f), device.get_swapchain_extent().width / (float) device.get_swapchain_extent().height, 0.f, 10.f);
 

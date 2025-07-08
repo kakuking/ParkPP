@@ -15,7 +15,7 @@
 
 #include <engine/window.h>
 
-#include <engine/texture.h>
+#include <engine/image.h>
 
 const int MAX_FRAMES_IN_FLIGHT = 2;
 
@@ -136,7 +136,7 @@ private:
 
     std::vector<Pipeline*> m_pipelines;
 
-    std::vector<Texture> m_textures;
+    std::vector<TextureImage> m_textures;
 
     // Window object
     Window m_window;

@@ -1,7 +1,7 @@
 #include <engine/renderer.h>
 #include <engine/pipeline.h>
 
-#include <engine/texture.h>
+#include <engine/image.h>
 
 #include <iostream>
 
@@ -33,8 +33,8 @@ void Renderer::initialize(
 
     create_command_pool();
 
-    for(Texture &tex: m_textures)
-        tex.create_texture_image(*this);
+    for(TextureImage &tex: m_textures)
+        Image::initialize_texture_image(*this, tex);
 
     // std::cout << "Creating desc pool!\n";
     create_descriptor_pool();
@@ -545,8 +545,8 @@ uint32_t Renderer::find_memory_type(uint32_t filter, VkMemoryPropertyFlags props
 }
 
 void Renderer::add_texture(std::string filename, uint32_t binding) {
-    Texture tex;
-    tex.init_texture(filename);
+    TextureImage tex;
+    tex = Image::create_texture_image(filename);
     // tex.create_texture_image(*this, filename);
     m_textures.push_back(tex);
 
@@ -659,8 +659,8 @@ void Renderer::create_descriptor_sets(
 
         for(size_t binding = 0; binding < num_images; binding++) {
             image_infos[binding].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-            image_infos[binding].imageView = m_textures[binding].get_image_view();
-            image_infos[binding].sampler = m_textures[binding].get_sampler();
+            image_infos[binding].imageView = m_textures[binding].m_image_view;
+            image_infos[binding].sampler = m_textures[binding].m_sampler;
 
             VkWriteDescriptorSet descriptor_write{};
             descriptor_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;

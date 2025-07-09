@@ -1,11 +1,37 @@
-<!-- markdownlint-disable-file MD026 -->
+<!-- markdownlint-disable-file MD -->
 
-# PoggerPark!
+# 👾🎮 PoggerPark: A Vulkan-Based game engine! 📽️👾
 
-To build in windows (with MSBuild) -
+A very simple game "engine" in C++. Only the Vulkan SDK has to be pre-installed, all other libraries are fetched using CMake FetchContent!
+
+I made this since I am very interested in Computer Graphics for a really long time, I have attempted something like this many times. This is maybe the furthest I have got into actually doing it and keeping it clean.
+
+Most of the Vulkan Functionalities are quite basic, I picked them up from the [Vulkan-Tutorial](https://vulkan-tutorial.com/Introduction). If you are learning vulkan I highly recommend going through the tutorial 😊
+
+## Current features
+
+1. Basic rendering, with vertex and fragment shaders 🎥
+2. Separation of Game and Engine hand 👐
+3. Textures 🖼
+4. Depth buffering 🌊
+
+## Things to implement
+
+1. Model loading (currently hardcoded) 🗿
+2. Lighting 💡
+3. Anti-aliasing ⬛
+4. Shadow mapping 🔦
+5. Transparency 🔎
+6. More complex materials 🎨
+7. Maybe moving from GLFW to SDL or SFML (for audio capabilities) 👨‍🔬 
+8. Billboards and particles 🎆
+9. Physics and collisions 🎯
+
+## To build - 
+### Windows (with MSBuild) -
 Note that you need to have [Vulkan SDK](https://www.lunarg.com/vulkan-sdk/) installed, and additionally, GLSLC as well!
 
-```bash
+```batch
 @echo off
 
 cd build
@@ -18,21 +44,5 @@ msbuild PoggerPark.sln -property:Configuration=Release
 .\Release\PoggerPark.exe
 ```
 
-## Current features
-
-1. Basic rendering, with vertex and fragment shaders
-2. Separation of Game and Engine
-3. Textures 
-
-## Things to implement
-
-1. Depth buffering
-2. Model loading (currently hardcoded)
-3. Anti-aliasing
-5. Lighting
-6. Shadow mapping
-7. Transparency
-8. More complex materials
-9.  Maybe moving from GLFW to SDL or SFML (for audio capabilities) 
-10. Billboards and particles
-11. Physics and collisions
+### Mac & Linux - 
+I don't know 😅

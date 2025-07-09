@@ -6,6 +6,8 @@
 #include <vector>
 #include <array>
 
+#include <tiny_obj_loader.h>
+
 namespace Game {
 struct Vertex {
     glm::vec3 pos;

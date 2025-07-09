@@ -28,13 +28,16 @@ struct DepthImage {
 class Image {
 public:
     static TextureImage create_texture_image(std::string filename); // { TextureImage ret{}; ret.filename = filename; return ret; }
+    static DepthImage create_depth_image(Renderer &renderer, uint32_t width, uint32_t height, VkFormat depth_format);
     static void initialize_texture_image(Renderer &renderer, TextureImage &texture_image);
 private:
 
     static void create_image(Renderer &renderer, uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory);
     static void transition_image_layout(Renderer &renderer, VkImage image, VkFormat format, VkImageLayout old_layout, VkImageLayout new_layout);
-    static VkImageView create_image_view(Renderer &renderer, VkImage image, VkFormat format);
+    static VkImageView create_image_view(Renderer &renderer, VkImage image, VkFormat format, VkImageAspectFlags aspect_flags);
     static VkSampler create_texture_sampler(Renderer &renderer);
+
+    static bool has_stencil_component(VkFormat format) { return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT; }
 };
 
 }

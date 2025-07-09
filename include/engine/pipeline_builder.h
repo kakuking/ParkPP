@@ -39,7 +39,7 @@ public:
     
     PipelineData build(Renderer &device);
 
-    void create_render_pass(vkb::DispatchTable &dispatch, vkb::Swapchain swapchain);
+    void create_render_pass(Renderer &renderer, vkb::Swapchain swapchain);
 
 private:
     VkPipelineDynamicStateCreateInfo get_dynamic_state_create_info();
@@ -53,6 +53,7 @@ private:
     VkPipelineColorBlendAttachmentState get_color_blend_attachment();
     VkPipelineColorBlendStateCreateInfo get_color_blend_state(VkPipelineColorBlendAttachmentState &attachment);
     VkGraphicsPipelineCreateInfo get_pipeline_create_info();
+    VkPipelineDepthStencilStateCreateInfo get_depth_stencil_create_info();
     void create_descriptor_set_layout(vkb::DispatchTable &dispatch);
 
     Shader m_vert_shader, m_frag_shader;

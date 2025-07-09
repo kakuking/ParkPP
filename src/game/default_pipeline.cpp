@@ -9,7 +9,7 @@ void DefaultPipeline::create_pipeline(Engine::Renderer &device, VkFormat image_f
 
     builder.create_pipeline_layout(device, layout.data());
 
-    builder.create_render_pass(device.m_dispatch, device.get_swapchain());
+    builder.create_render_pass(device, device.get_swapchain());
     
     builder.set_shaders(device, "shaders/shader.vert.spv", "shaders/shader.frag.spv");
     builder.set_input_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);

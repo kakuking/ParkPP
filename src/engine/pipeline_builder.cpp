@@ -29,6 +29,8 @@ PipelineData PipelineBuilder::build(Renderer &device) {
     // std::cout << "Creating cb\n";
     VkPipelineColorBlendStateCreateInfo color_blending = get_color_blend_state(color_blend_attachment);
 
+    VkPipelineDepthStencilStateCreateInfo depth_stencil = get_depth_stencil_create_info();
+
     // std::cout << "Creating pci\n";
     VkGraphicsPipelineCreateInfo create_info{};
     create_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
@@ -39,7 +41,7 @@ PipelineData PipelineBuilder::build(Renderer &device) {
     create_info.pViewportState = &viewport_state;
     create_info.pRasterizationState = &rasterizer;
     create_info.pMultisampleState = &multisampling;
-    create_info.pDepthStencilState = nullptr;
+    create_info.pDepthStencilState = &depth_stencil;
     create_info.pColorBlendState = &color_blending;
     create_info.pDynamicState = &dynamic_states;
     create_info.layout = m_pipeline_layout;
@@ -83,7 +85,7 @@ void PipelineBuilder::set_shaders(Renderer &device, const std::string &vert_shad
     m_frag_shader.create_shader(device.m_dispatch, frag_shader_filename, VK_SHADER_STAGE_FRAGMENT_BIT);
 }
 
-void PipelineBuilder::create_render_pass(vkb::DispatchTable &dispatch, vkb::Swapchain swapchain) {
+void PipelineBuilder::create_render_pass(Renderer &renderer, vkb::Swapchain swapchain) {
     VkAttachmentDescription colorAttachment{};
     colorAttachment.format = swapchain.image_format;
     colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
@@ -98,21 +100,60 @@ void PipelineBuilder::create_render_pass(vkb::DispatchTable &dispatch, vkb::Swap
     colorAttachmentRef.attachment = 0;
     colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
+    VkAttachmentDescription depth_attachment{};
+    depth_attachment.format = renderer.find_depth_format();
+    depth_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
+    depth_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    depth_attachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depth_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    depth_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depth_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    depth_attachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+    VkAttachmentReference depth_attachment_ref{};
+    depth_attachment_ref.attachment = 1;
+    depth_attachment_ref.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
     VkSubpassDescription subpass{};
     subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
     subpass.colorAttachmentCount = 1;
     subpass.pColorAttachments = &colorAttachmentRef;
+    subpass.pDepthStencilAttachment = &depth_attachment_ref;
+
+    VkSubpassDependency dependency{};
+    dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+    dependency.dstSubpass = 0;
+    dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+    dependency.srcAccessMask = 0;
+    dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
+    std::vector<VkAttachmentDescription> attachments = {colorAttachment, depth_attachment};
 
     VkRenderPassCreateInfo renderPassInfo{};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-    renderPassInfo.attachmentCount = 1;
-    renderPassInfo.pAttachments = &colorAttachment;
+    renderPassInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
+    renderPassInfo.pAttachments = attachments.data();
     renderPassInfo.subpassCount = 1;
     renderPassInfo.pSubpasses = &subpass;
+    renderPassInfo.dependencyCount = 1;
+    renderPassInfo.pDependencies = &dependency;
 
-    if (dispatch.createRenderPass(&renderPassInfo, nullptr, &m_render_pass) != VK_SUCCESS) {
+    if (renderer.m_dispatch.createRenderPass(&renderPassInfo, nullptr, &m_render_pass) != VK_SUCCESS) {
         throw std::runtime_error("failed to create render pass!");
     }
+}
+
+VkPipelineDepthStencilStateCreateInfo PipelineBuilder::get_depth_stencil_create_info() {
+    VkPipelineDepthStencilStateCreateInfo depth_stencil{};
+    depth_stencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    depth_stencil.depthTestEnable = VK_TRUE;
+    depth_stencil.depthWriteEnable = VK_TRUE;
+    depth_stencil.depthCompareOp = VK_COMPARE_OP_LESS;
+    depth_stencil.depthBoundsTestEnable = VK_FALSE;
+    depth_stencil.stencilTestEnable = VK_FALSE;
+
+    return depth_stencil;
 }
 
 VkPipelineDynamicStateCreateInfo PipelineBuilder::get_dynamic_state_create_info() {

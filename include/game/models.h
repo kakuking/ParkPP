@@ -68,12 +68,15 @@ const std::vector<Vertex> vertices = {
 };
 
 const std::vector<uint16_t> indices = {
-    // Base (2 triangles)
+    // plane
     // 0, 1, 2,
     // 2, 3, 0,
+    
+
+    // Base (2 triangles)
     2, 1, 0,
     0, 3, 2,
-
+    
     // Side faces (each triangle connects to apex)
     0, 1, 4, // front
     1, 2, 4, // right

@@ -33,6 +33,8 @@ void Renderer::initialize(
 
     create_command_pool();
 
+    create_depth_resources();
+
     for(TextureImage &tex: m_textures)
         Image::initialize_texture_image(*this, tex);
 
@@ -156,6 +158,8 @@ void Renderer::cleanup() {
     m_dispatch.destroyDescriptorPool(m_descriptor_pool, nullptr);
     // std::cout << "Cleaning up dsl\n";
     m_dispatch.destroyDescriptorSetLayout(m_descriptor_set_layout, nullptr);
+
+    m_depth.cleanup(m_dispatch);
 
     for(int i = 0; i < m_textures.size(); i++)
         m_textures[i].cleanup(m_dispatch);
@@ -419,15 +423,16 @@ void Renderer::create_framebuffers() {
     m_swapchain_framebuffers.resize(m_swapchain_image_views.size());
 
     for(size_t i = 0; i < m_swapchain_image_views.size(); i++) {
-        VkImageView attachments[] = {
-            m_swapchain_image_views[i]
+        std::vector<VkImageView> attachments = {
+            m_swapchain_image_views[i],
+            m_depth.m_image_view
         };
 
         VkFramebufferCreateInfo info{};
         info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
         info.renderPass = m_render_pass;
-        info.attachmentCount = 1;
-        info.pAttachments = attachments;
+        info.attachmentCount = static_cast<uint32_t>(attachments.size());
+        info.pAttachments = attachments.data();
         info.width = m_swapchain.extent.width;
         info.height = m_swapchain.extent.height;
         info.layers = 1;
@@ -677,6 +682,33 @@ void Renderer::create_descriptor_sets(
         // Use buffer_infos, which lives long enough for the call
         m_dispatch.updateDescriptorSets(static_cast<uint32_t>(descriptor_writes.size()), descriptor_writes.data(), 0, nullptr);
     }
+}
+
+VkFormat Renderer::find_supported_format(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features) {
+    for (VkFormat format : candidates) {
+        VkFormatProperties props;
+        m_instance_dispatch.getPhysicalDeviceFormatProperties(m_physical_device, format, &props);
+
+        if (tiling == VK_IMAGE_TILING_LINEAR && (props.linearTilingFeatures & features) == features) {
+            return format;
+        } else if (tiling == VK_IMAGE_TILING_OPTIMAL && (props.optimalTilingFeatures & features) == features) {
+            return format;
+        }
+    }
+
+    throw std::runtime_error("failed to find supported format!");
+}
+
+VkFormat Renderer::find_depth_format() {
+    return find_supported_format(
+        {VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT},
+        VK_IMAGE_TILING_OPTIMAL,
+        VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT
+    );
+}
+
+void Renderer::create_depth_resources() {
+    m_depth = Image::create_depth_image(*this, m_swapchain.extent.width, m_swapchain.extent.height, find_depth_format());
 }
 
 }

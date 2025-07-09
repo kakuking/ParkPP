@@ -69,6 +69,7 @@ public:
     vkb::Swapchain get_swapchain() { return m_swapchain; }
     uint32_t find_memory_type(uint32_t filter, VkMemoryPropertyFlags props);
     VkPhysicalDeviceProperties get_physical_device_properties() { return m_physical_device_properties; }
+    VkFormat find_depth_format();
 
 private:
 
@@ -98,6 +99,11 @@ private:
 
     void destroy_buffer(int buffer_idx);
     void destroy_pipeline(int pipeline_idx);
+
+    void create_depth_resources();
+    VkFormat find_supported_format(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features);
+    bool has_stencil_component(VkFormat format) { return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT; }
+
     
     // Vulkan context
     vkb::Instance m_instance;
@@ -147,5 +153,8 @@ private:
 
     uint32_t m_current_frame = 0;
     uint32_t m_current_image_index = 0;
+
+    // depth resources
+    DepthImage m_depth;
 };
 }

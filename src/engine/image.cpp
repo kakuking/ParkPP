@@ -25,6 +25,26 @@ TextureImage Image::create_texture_image(std::string filename) {
     return ret; 
 }
 
+DepthImage Image::create_depth_image(Renderer &renderer, uint32_t width, uint32_t height, VkFormat depth_format) {
+    VkImage depth_image;
+    VkDeviceMemory depth_image_memory;
+    VkImageView depth_image_view;
+
+    create_image(renderer, width, height, depth_format, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depth_image, depth_image_memory);
+
+    depth_image_view = create_image_view(renderer, depth_image, depth_format, VK_IMAGE_ASPECT_DEPTH_BIT);
+
+    transition_image_layout(renderer, depth_image, depth_format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+
+    DepthImage ret{};
+    ret.m_image = depth_image;
+    ret.m_image_memory = depth_image_memory;
+    ret.m_image_view = depth_image_view;
+
+    return ret;
+}
+
+
 void Image::initialize_texture_image(Renderer &renderer, TextureImage &tex) {
     int tex_width, tex_height, tex_channels;
 
@@ -52,19 +72,19 @@ void Image::initialize_texture_image(Renderer &renderer, TextureImage &tex) {
     transition_image_layout(renderer, tex.m_image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
     // Create image view
-    tex.m_image_view = create_image_view(renderer, tex.m_image, VK_FORMAT_R8G8B8A8_SRGB);
+    tex.m_image_view = create_image_view(renderer, tex.m_image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
 
     // Create image sampler
     tex.m_sampler = create_texture_sampler(renderer);
 }
 
-VkImageView Image::create_image_view(Renderer &renderer, VkImage image, VkFormat format) {
+VkImageView Image::create_image_view(Renderer &renderer, VkImage image, VkFormat format, VkImageAspectFlags aspect_flags) {
     VkImageViewCreateInfo viewInfo{};
     viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
     viewInfo.image = image;
     viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
     viewInfo.format = format;
-    viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    viewInfo.subresourceRange.aspectMask = aspect_flags;
     viewInfo.subresourceRange.baseMipLevel = 0;
     viewInfo.subresourceRange.levelCount = 1;
     viewInfo.subresourceRange.baseArrayLayer = 0;
@@ -126,7 +146,17 @@ void Image::transition_image_layout(Renderer &renderer, VkImage image, VkFormat 
     barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 
     barrier.image = image;
-    barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+
+    if (new_layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
+        barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+
+        if(has_stencil_component(format))
+            barrier.subresourceRange.aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
+    } else {
+        barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    }
+
+    
     barrier.subresourceRange.baseMipLevel = 0;
     barrier.subresourceRange.levelCount = 1;
     barrier.subresourceRange.baseArrayLayer = 0;
@@ -148,6 +178,12 @@ void Image::transition_image_layout(Renderer &renderer, VkImage image, VkFormat 
 
         source_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
         destination_stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    } else if (old_layout == VK_IMAGE_LAYOUT_UNDEFINED && new_layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
+        barrier.srcAccessMask = 0;
+        barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
+        source_stage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+        destination_stage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
     } else {
         throw std::invalid_argument("unsupported layout transition!");
     }

@@ -7,8 +7,10 @@ void DefaultPipeline::create_pipeline(Engine::Renderer &device, VkFormat image_f
     Engine::PipelineBuilder builder;
     std::vector<VkDescriptorSetLayout> layout = {device.get_descriptor_set_layout()};
 
-    builder.create_pipeline_layout(device, layout.data());
+    builder.add_push_constants(sizeof(glm::mat4));
 
+    builder.create_pipeline_layout(device, layout.data());
+    
     builder.create_render_pass(device, device.get_swapchain());
     
     builder.set_shaders(device, "shaders/shader.vert.spv", "shaders/shader.frag.spv");

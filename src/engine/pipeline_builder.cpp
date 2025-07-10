@@ -70,8 +70,8 @@ void PipelineBuilder::create_pipeline_layout(Renderer &device, VkDescriptorSetLa
     info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     info.setLayoutCount = 1;
     info.pSetLayouts = descriptor_set_layouts;
-    info.pushConstantRangeCount = 0;
-    info.pPushConstantRanges = nullptr;
+    info.pushConstantRangeCount = static_cast<uint32_t>(m_push_constant_ranges.size());
+    info.pPushConstantRanges = m_push_constant_ranges.data();
 
     if(device.m_dispatch
         .createPipelineLayout(&info, nullptr, &m_pipeline_layout) != VK_SUCCESS)
@@ -84,6 +84,16 @@ void PipelineBuilder::set_shaders(Renderer &device, const std::string &vert_shad
     // std::cout << "Creating frag shader\n";
     m_frag_shader.create_shader(device.m_dispatch, frag_shader_filename, VK_SHADER_STAGE_FRAGMENT_BIT);
 }
+
+void PipelineBuilder::add_push_constants(uint32_t pc_size, uint32_t offset, VkShaderStageFlags shader_stage) {
+    VkPushConstantRange push_constant;
+	push_constant.offset = offset;
+	push_constant.size = pc_size;
+	push_constant.stageFlags = shader_stage;
+
+    m_push_constant_ranges.push_back(push_constant);
+}
+
 
 void PipelineBuilder::create_render_pass(Renderer &renderer, vkb::Swapchain swapchain) {
     VkAttachmentDescription colorAttachment{};

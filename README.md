@@ -20,8 +20,8 @@ Most of the Vulkan Functionalities are quite basic, I picked them up from the [V
 ## Things to implement
 
 1. Lighting 💡
-2. Transparency 🔎
-3. Shadow mapping 🔦
+2. Shadow mapping 🔦
+3. Transparency 🔎
 4. More complex materials 🎨
 5. Maybe moving from GLFW to SDL or SFML (for audio capabilities) 👨‍🔬 
 6. Billboards and particles 🎆

@@ -19,6 +19,7 @@ public:
     void create_pipeline_layout(Renderer &device, VkDescriptorSetLayout *descriptor_set_layout);
 
     void set_shaders(Renderer &device, const std::string &vert_shader_filename, const std::string &frag_shader_filename);
+    void add_push_constants(uint32_t pc_size, uint32_t offset=0, VkShaderStageFlags shader_stage=VK_SHADER_STAGE_VERTEX_BIT);
     
     void set_input_topology(VkPrimitiveTopology input_topology) { m_input_topology = input_topology; }
     void set_polygon_mode(VkPolygonMode polygon_mode) { m_polygon_mode = polygon_mode; }
@@ -61,7 +62,8 @@ private:
     VkPipeline m_pipeline;
     VkPipelineLayout m_pipeline_layout;
     std::vector<VkDynamicState> m_dynamic_states;
-
+    std::vector<VkPushConstantRange> m_push_constant_ranges;
+    
     VkPrimitiveTopology m_input_topology;
     VkPolygonMode m_polygon_mode;
     VkFormat m_draw_format;

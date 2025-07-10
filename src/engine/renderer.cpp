@@ -591,7 +591,6 @@ void Renderer::add_texture(std::string filename, uint32_t binding) {
     add_descriptor_set_layout_binding(texture_layout_binding, 0);
 }
 
-
 void Renderer::create_sync_objects() {
     m_image_available_semaphores.resize(MAX_FRAMES_IN_FLIGHT);
     m_render_finished_semaphores.resize(MAX_FRAMES_IN_FLIGHT);

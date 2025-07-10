@@ -63,7 +63,7 @@ struct Vertex {
 };
 
 struct UniformBufferObject {
-    glm::mat4 model;
+    // glm::mat4 model;
     glm::mat4 view;
     glm::mat4 proj;
 };
@@ -73,6 +73,7 @@ struct Model {
     std::vector<uint32_t> indices;
     size_t vertex_buffer_idx, index_buffer_idx;
     size_t vertex_buffer_size, index_buffer_size;
+    glm::mat4 model_matrix = glm::mat4(1.f);
 
     void create_buffers(Engine::Renderer &renderer);
     void refresh_buffers(Engine::Renderer &renderer);

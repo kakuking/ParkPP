@@ -18,17 +18,21 @@ int main() {
     float width = (float) renderer.get_swapchain_extent().width;
     float height = (float) renderer.get_swapchain_extent().height;
 
-    Game::Model model = Game::load_obj_model("./models/viking_room.obj");
-    model.create_buffers(renderer);
+    Game::Model room_model = Game::load_obj_model("./models/viking_room.obj");
+    room_model.create_buffers(renderer);
 
-    const std::vector<uint32_t> &indices = model.indices;
-    
+    Game::Model room_model_copy = Game::load_obj_model("./models/viking_room.obj");
+    room_model_copy.create_buffers(renderer);
+    room_model_copy.model_matrix = glm::translate(glm::mat4(1.f), glm::vec3(0.f, 2.f, 0.f));
+
+    std::vector<Game::Model> models = {room_model, room_model_copy};
+
     size_t ub_size = sizeof(Game::UniformBufferObject);
     size_t first_uniform_buffer_idx = renderer.create_uniform_buffer(ub_size);
 
     // Initialize uniform buffers!
     Game::UniformBufferObject ubo{};
-    ubo.model = glm::rotate(glm::mat4(1.f), glm::radians(90.f), glm::vec3(0.f, 0.f, 1.f));
+    // ubo.model = glm::rotate(glm::mat4(1.f), glm::radians(90.f), glm::vec3(0.f, 0.f, 1.f));
     ubo.view = glm::lookAt(glm::vec3(2.f, 2.f, 2.f), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 0.f, 1.f));
     ubo.proj = glm::perspective(glm::radians(45.f), width / height, 0.f, 10.f);
     ubo.proj[1][1] *= -1;
@@ -82,13 +86,6 @@ int main() {
             fmt::println("{}", fps);
         }
 
-        ubo.model = glm::rotate(glm::mat4(1.f), total_time * glm::radians(90.f), glm::vec3(0.f, 0.f, 1.f));
-        ubo.view = glm::lookAt(glm::vec3(2.f, 2.f * cosf(total_time),  2.f * sinf(total_time)), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 0.f, 1.f));
-        ubo.proj = glm::perspective(glm::radians(45.f), width / height, 0.1f, 10.f);
-
-        ubo.proj[1][1] *= -1;
-        renderer.update_buffer(first_uniform_buffer_idx + current_frame, &ubo, sizeof(ubo));
-
         VkRenderPassBeginInfo render_pass_info{};
         render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
         render_pass_info.renderPass = renderer.get_render_pass();
@@ -107,15 +104,6 @@ int main() {
 
         renderer.m_dispatch.cmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.get_pipeline());
 
-        VkBuffer vertex_buffers[] = {renderer.get_buffer(model.vertex_buffer_idx)};
-        VkDeviceSize offsets[] = {0};
-
-        VkBuffer index_buffer = renderer.get_buffer(model.index_buffer_idx);
-
-        renderer.m_dispatch.cmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers, offsets);
-
-        renderer.m_dispatch.cmdBindIndexBuffer(command_buffer, index_buffer, 0, VK_INDEX_TYPE_UINT32);
-
         VkViewport viewport{};
         viewport.x = 0.f;
         viewport.y = 0.f;
@@ -133,7 +121,30 @@ int main() {
         VkDescriptorSet cur_ds = renderer.get_descriptor_set(current_frame);
         renderer.m_dispatch.cmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.get_pipeline_layout(), 0, 1, &cur_ds, 0, nullptr);
 
-        renderer.m_dispatch.cmdDrawIndexed(command_buffer, static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
+        ubo.view = glm::lookAt(glm::vec3(2.f, 2.f * cosf(total_time),  2.f * sinf(total_time)), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 0.f, 1.f));
+        ubo.proj = glm::perspective(glm::radians(45.f), width / height, 0.1f, 10.f);
+        ubo.proj[1][1] *= -1;
+        renderer.update_buffer(first_uniform_buffer_idx + current_frame, &ubo, sizeof(ubo));
+
+        for(const Game::Model &model: models) {
+            // Set model matrix
+            // ubo.model = model.model_matrix;
+            renderer.m_dispatch.cmdPushConstants(command_buffer, pipeline.get_pipeline_layout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(glm::mat4), &model.model_matrix);
+            
+            // Retreive vertex and index buffers
+            VkBuffer vertex_buffers[] = {renderer.get_buffer(model.vertex_buffer_idx)};
+            VkDeviceSize offsets[] = {0};
+            VkBuffer index_buffer = renderer.get_buffer(model.index_buffer_idx);
+            
+            // Bind vertex and index buffers
+            renderer.m_dispatch.cmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers, offsets);
+            renderer.m_dispatch.cmdBindIndexBuffer(command_buffer, index_buffer, 0, VK_INDEX_TYPE_UINT32);
+            
+            // draw call
+            renderer.m_dispatch.cmdDrawIndexed(command_buffer, static_cast<uint32_t>(model.indices.size()), 1, 0, 0, 0);
+
+            // break;
+        }
 
         renderer.m_dispatch.cmdEndRenderPass(command_buffer);
 

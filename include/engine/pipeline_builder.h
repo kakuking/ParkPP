@@ -49,7 +49,7 @@ private:
     VkRect2D get_scissor(const vkb::Swapchain &swapchain);
     VkPipelineViewportStateCreateInfo get_viewport_state();
     VkPipelineRasterizationStateCreateInfo get_rasterizer_state();
-    VkPipelineMultisampleStateCreateInfo get_multisampling();
+    VkPipelineMultisampleStateCreateInfo get_multisampling(VkSampleCountFlagBits num_samples);
     VkPipelineColorBlendAttachmentState get_color_blend_attachment();
     VkPipelineColorBlendStateCreateInfo get_color_blend_state(VkPipelineColorBlendAttachmentState &attachment);
     VkGraphicsPipelineCreateInfo get_pipeline_create_info();

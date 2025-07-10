@@ -33,6 +33,7 @@ void Renderer::initialize(
 
     create_command_pool();
 
+    create_color_resources();
     create_depth_resources();
 
     for(TextureImage &tex: m_textures)
@@ -378,8 +379,9 @@ void Renderer::pick_physical_device() {
     }
     
     m_physical_device = selector_ret.value();
-    
     m_instance_dispatch.getPhysicalDeviceProperties(m_physical_device, &m_physical_device_properties);
+
+    m_msaa_samples = get_max_usable_sample_count();
 }
 
 void Renderer::create_logical_device() {
@@ -443,8 +445,9 @@ void Renderer::create_framebuffers() {
 
     for(size_t i = 0; i < m_swapchain_image_views.size(); i++) {
         std::vector<VkImageView> attachments = {
-            m_swapchain_image_views[i],
-            m_depth.m_image_view
+            m_color_image.m_image_view,
+            m_depth.m_image_view,
+            m_swapchain_image_views[i]
         };
 
         VkFramebufferCreateInfo info{};
@@ -528,6 +531,7 @@ void Renderer::recreate_swap_chain() {
     cleanup_swapchain();
 
     create_swapchains();
+    create_color_resources();
     create_depth_resources();
     create_framebuffers();
 }
@@ -537,6 +541,7 @@ void Renderer::cleanup_swapchain() {
         m_dispatch.destroyFramebuffer(framebuffer, nullptr);
 
     m_depth.cleanup(m_dispatch);
+    m_color_image.cleanup(m_dispatch);
     m_swapchain.destroy_image_views(m_swapchain_image_views);
     vkb::destroy_swapchain(m_swapchain);
 }
@@ -731,5 +736,26 @@ VkFormat Renderer::find_depth_format() {
 void Renderer::create_depth_resources() {
     m_depth = Image::create_depth_image(*this, m_swapchain.extent.width, m_swapchain.extent.height, find_depth_format());
 }
+
+VkSampleCountFlagBits Renderer::get_max_usable_sample_count() {
+    VkSampleCountFlags counts = m_physical_device_properties.limits.framebufferColorSampleCounts & m_physical_device_properties.limits.framebufferDepthSampleCounts;
+    
+    if (counts & VK_SAMPLE_COUNT_64_BIT) return VK_SAMPLE_COUNT_64_BIT;
+    if (counts & VK_SAMPLE_COUNT_32_BIT) return VK_SAMPLE_COUNT_32_BIT;
+    if (counts & VK_SAMPLE_COUNT_16_BIT) return VK_SAMPLE_COUNT_16_BIT;
+    if (counts & VK_SAMPLE_COUNT_8_BIT) return VK_SAMPLE_COUNT_8_BIT;
+    if (counts & VK_SAMPLE_COUNT_4_BIT) return VK_SAMPLE_COUNT_4_BIT;
+    if (counts & VK_SAMPLE_COUNT_2_BIT) return VK_SAMPLE_COUNT_2_BIT;
+
+    return VK_SAMPLE_COUNT_1_BIT;
+}
+
+void Renderer::create_color_resources() {
+    VkFormat color_format = m_swapchain.image_format;
+
+    m_color_image = Image::create_color_image(*this, m_swapchain.extent.width, m_swapchain.extent.height, color_format, m_msaa_samples);
+}
+
+
 
 }

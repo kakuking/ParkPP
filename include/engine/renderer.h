@@ -73,6 +73,7 @@ public:
     uint32_t find_memory_type(uint32_t filter, VkMemoryPropertyFlags props);
     VkPhysicalDeviceProperties get_physical_device_properties() { return m_physical_device_properties; }
     VkFormat find_depth_format();
+    VkSampleCountFlagBits get_msaa_sample_count() { return m_msaa_samples; }
 
 private:
 
@@ -104,8 +105,10 @@ private:
     void destroy_pipeline(int pipeline_idx);
 
     void create_depth_resources();
+    void create_color_resources();
     VkFormat find_supported_format(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features);
     bool has_stencil_component(VkFormat format) { return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT; }
+    VkSampleCountFlagBits get_max_usable_sample_count();
 
     
     // Vulkan context
@@ -159,5 +162,9 @@ private:
 
     // depth resources
     DepthImage m_depth;
+
+    // for msaa
+    VkSampleCountFlagBits m_msaa_samples = VK_SAMPLE_COUNT_1_BIT;
+    ColorImage m_color_image;
 };
 }

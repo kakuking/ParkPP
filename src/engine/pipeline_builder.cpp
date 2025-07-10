@@ -23,7 +23,7 @@ PipelineData PipelineBuilder::build(Renderer &device) {
     // std::cout << "Creating rast\n";
     VkPipelineRasterizationStateCreateInfo rasterizer = get_rasterizer_state();
     // std::cout << "Creating ms\n";
-    VkPipelineMultisampleStateCreateInfo multisampling = get_multisampling();
+    VkPipelineMultisampleStateCreateInfo multisampling = get_multisampling(device.get_msaa_sample_count());
     // std::cout << "Creating cba\n";
     VkPipelineColorBlendAttachmentState color_blend_attachment = get_color_blend_attachment();
     // std::cout << "Creating cb\n";
@@ -88,13 +88,13 @@ void PipelineBuilder::set_shaders(Renderer &device, const std::string &vert_shad
 void PipelineBuilder::create_render_pass(Renderer &renderer, vkb::Swapchain swapchain) {
     VkAttachmentDescription colorAttachment{};
     colorAttachment.format = swapchain.image_format;
-    colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+    colorAttachment.samples = renderer.get_msaa_sample_count();
     colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    colorAttachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
     VkAttachmentReference colorAttachmentRef{};
     colorAttachmentRef.attachment = 0;
@@ -102,7 +102,7 @@ void PipelineBuilder::create_render_pass(Renderer &renderer, vkb::Swapchain swap
 
     VkAttachmentDescription depth_attachment{};
     depth_attachment.format = renderer.find_depth_format();
-    depth_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
+    depth_attachment.samples = renderer.get_msaa_sample_count();
     depth_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     depth_attachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     depth_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
@@ -114,11 +114,26 @@ void PipelineBuilder::create_render_pass(Renderer &renderer, vkb::Swapchain swap
     depth_attachment_ref.attachment = 1;
     depth_attachment_ref.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
+    VkAttachmentDescription color_attachment_resolve{};
+    color_attachment_resolve.format = renderer.get_swapchain().image_format;
+    color_attachment_resolve.samples = VK_SAMPLE_COUNT_1_BIT;
+    color_attachment_resolve.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    color_attachment_resolve.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    color_attachment_resolve.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    color_attachment_resolve.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    color_attachment_resolve.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    color_attachment_resolve.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+    VkAttachmentReference color_attachment_resolve_ref{};
+    color_attachment_resolve_ref.attachment = 2;
+    color_attachment_resolve_ref.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
     VkSubpassDescription subpass{};
     subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
     subpass.colorAttachmentCount = 1;
     subpass.pColorAttachments = &colorAttachmentRef;
     subpass.pDepthStencilAttachment = &depth_attachment_ref;
+    subpass.pResolveAttachments = &color_attachment_resolve_ref;
 
     VkSubpassDependency dependency{};
     dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
@@ -128,7 +143,7 @@ void PipelineBuilder::create_render_pass(Renderer &renderer, vkb::Swapchain swap
     dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
     dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 
-    std::vector<VkAttachmentDescription> attachments = {colorAttachment, depth_attachment};
+    std::vector<VkAttachmentDescription> attachments = {colorAttachment, depth_attachment, color_attachment_resolve};
 
     VkRenderPassCreateInfo renderPassInfo{};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
@@ -237,11 +252,11 @@ VkPipelineRasterizationStateCreateInfo PipelineBuilder::get_rasterizer_state() {
     return rasterizer;
 }
 
-VkPipelineMultisampleStateCreateInfo PipelineBuilder::get_multisampling() {
+VkPipelineMultisampleStateCreateInfo PipelineBuilder::get_multisampling(VkSampleCountFlagBits num_samples) {
     VkPipelineMultisampleStateCreateInfo multisampling{};
     multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
     multisampling.sampleShadingEnable = VK_FALSE;
-    multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+    multisampling.rasterizationSamples = num_samples;
 
     return multisampling;
 }

@@ -19,6 +19,12 @@ void DepthImage::cleanup(vkb::DispatchTable &dispatch_table) {
     dispatch_table.freeMemory(m_image_memory, nullptr);
 }
 
+void ColorImage::cleanup(vkb::DispatchTable &dispatch_table) {
+    dispatch_table.destroyImageView(m_image_view, nullptr);
+    dispatch_table.destroyImage(m_image, nullptr);
+    dispatch_table.freeMemory(m_image_memory, nullptr);
+}
+
 TextureImage Image::create_texture_image(std::string filename) {
     TextureImage ret{}; 
     ret.m_filename = filename; 
@@ -30,7 +36,7 @@ DepthImage Image::create_depth_image(Renderer &renderer, uint32_t width, uint32_
     VkDeviceMemory depth_image_memory;
     VkImageView depth_image_view;
 
-    create_image(renderer, width, height, depth_format, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depth_image, depth_image_memory);
+    create_image(renderer, width, height, depth_format, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, renderer.get_msaa_sample_count(),  VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depth_image, depth_image_memory);
 
     depth_image_view = create_image_view(renderer, depth_image, depth_format, VK_IMAGE_ASPECT_DEPTH_BIT);
 
@@ -40,6 +46,23 @@ DepthImage Image::create_depth_image(Renderer &renderer, uint32_t width, uint32_
     ret.m_image = depth_image;
     ret.m_image_memory = depth_image_memory;
     ret.m_image_view = depth_image_view;
+
+    return ret;
+}
+
+ColorImage Image::create_color_image(Renderer &renderer, uint32_t width, uint32_t height, VkFormat format, VkSampleCountFlagBits num_samples) {
+    VkImage image;
+    VkDeviceMemory image_memory;
+    VkImageView image_view;
+
+    create_image(renderer, width, height, format, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, num_samples, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, image, image_memory);
+
+    image_view = create_image_view(renderer, image, format, VK_IMAGE_ASPECT_COLOR_BIT);
+
+    ColorImage ret{};
+    ret.m_image = image;
+    ret.m_image_memory = image_memory;
+    ret.m_image_view = image_view;
 
     return ret;
 }
@@ -63,7 +86,7 @@ void Image::initialize_texture_image(Renderer &renderer, TextureImage &tex) {
 
     create_image(
         renderer, tex_width, tex_height, 
-        VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, 
+        VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_SAMPLE_COUNT_1_BIT, 
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, tex.m_image, tex.m_image_memory
     );
 
@@ -98,7 +121,7 @@ VkImageView Image::create_image_view(Renderer &renderer, VkImage image, VkFormat
     return imageView;
 }
 
-void Image::create_image(Renderer &renderer, uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory) {
+void Image::create_image(Renderer &renderer, uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkSampleCountFlagBits num_samples, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory) {
     VkImageCreateInfo image_info{};
     image_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     image_info.imageType = VK_IMAGE_TYPE_2D;
@@ -115,7 +138,7 @@ void Image::create_image(Renderer &renderer, uint32_t width, uint32_t height, Vk
 
     image_info.usage = usage;
     image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    image_info.samples = VK_SAMPLE_COUNT_1_BIT;
+    image_info.samples = num_samples;
     image_info.flags = 0;
 
     if (renderer.m_dispatch.createImage(&image_info, nullptr, &image) != VK_SUCCESS)

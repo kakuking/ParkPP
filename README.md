@@ -14,18 +14,18 @@ Most of the Vulkan Functionalities are quite basic, I picked them up from the [V
 2. Separation of Game and Engine hand 👐
 3. Textures 🖼
 4. Depth buffering 🌊
+5. Model loading (currently hardcoded) 🗽
 
 ## Things to implement
 
-1. Model loading (currently hardcoded) 🗿
-2. Lighting 💡
-3. Anti-aliasing ⬛
-4. Shadow mapping 🔦
-5. Transparency 🔎
-6. More complex materials 🎨
-7. Maybe moving from GLFW to SDL or SFML (for audio capabilities) 👨‍🔬 
-8. Billboards and particles 🎆
-9. Physics and collisions 🎯
+1. Lighting 💡
+2. Anti-aliasing ⬛
+3. Shadow mapping 🔦
+4. Transparency 🔎
+5. More complex materials 🎨
+6. Maybe moving from GLFW to SDL or SFML (for audio capabilities) 👨‍🔬 
+7. Billboards and particles 🎆
+8. Physics and collisions 🎯
 
 ## To build - 
 ### Windows (with MSBuild) -

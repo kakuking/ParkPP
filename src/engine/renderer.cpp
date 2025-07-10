@@ -159,8 +159,6 @@ void Renderer::cleanup() {
     // std::cout << "Cleaning up dsl\n";
     m_dispatch.destroyDescriptorSetLayout(m_descriptor_set_layout, nullptr);
 
-    m_depth.cleanup(m_dispatch);
-
     for(int i = 0; i < m_textures.size(); i++)
         m_textures[i].cleanup(m_dispatch);
 
@@ -231,6 +229,27 @@ size_t Renderer::create_buffer(VkDeviceSize buffer_size, uint32_t usage, uint32_
     }
 
     return ret;
+}
+
+size_t Renderer::create_index_buffer(VkDeviceSize buffer_size) {
+    uint32_t usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+    uint32_t memory_props = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+
+    return create_buffer(buffer_size, usage, memory_props);
+}
+
+size_t Renderer::create_vertex_buffer(VkDeviceSize buffer_size) {
+    uint32_t usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+    uint32_t memory_props = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+    
+    return create_buffer(buffer_size, usage, memory_props);
+}
+
+size_t Renderer::create_uniform_buffer(VkDeviceSize buffer_size) {
+    uint32_t usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+    uint32_t memory_props = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+
+    return create_buffer(buffer_size, usage, memory_props, true);
 }
 
 void Renderer::update_buffer(size_t buffer_idx, void* src_data, size_t src_data_size) {
@@ -509,6 +528,7 @@ void Renderer::recreate_swap_chain() {
     cleanup_swapchain();
 
     create_swapchains();
+    create_depth_resources();
     create_framebuffers();
 }
 
@@ -516,6 +536,7 @@ void Renderer::cleanup_swapchain() {
     for(auto framebuffer: m_swapchain_framebuffers)
         m_dispatch.destroyFramebuffer(framebuffer, nullptr);
 
+    m_depth.cleanup(m_dispatch);
     m_swapchain.destroy_image_views(m_swapchain_image_views);
     vkb::destroy_swapchain(m_swapchain);
 }

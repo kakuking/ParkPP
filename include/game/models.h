@@ -1,12 +1,18 @@
 #pragma once
+
+#define GLM_ENABLE_EXPERIMENTAL
 #include <glm/glm.hpp>
+#include <glm/gtx/hash.hpp>
 #include <vulkan/vulkan.h>
 
 #include <iostream>
 #include <vector>
 #include <array>
+#include <unordered_map>
 
 #include <tiny_obj_loader.h>
+
+#include <engine/renderer.h>
 
 namespace Game {
 struct Vertex {
@@ -14,6 +20,10 @@ struct Vertex {
     float u;
     glm::vec3 color;
     float v;
+
+    bool operator==(const Vertex& other) const {
+        return pos == other.pos && color == other.color && u == other.u && v == other.v;
+    }
 
     static VkVertexInputBindingDescription get_binding_description() {
 
@@ -58,32 +68,29 @@ struct UniformBufferObject {
     glm::mat4 proj;
 };
 
-const std::vector<Vertex> vertices = {
-    // Base square (z = 0)
-    {{-0.5f, -0.5f, 0.0f},  1.f,    {1.f, 0.f, 0.f},    0.f}, // 0
-    {{0.5f, -0.5f, 0.0f},   0.f,    {0.f, 1.f, 0.f},    0.f}, // 1
-    {{0.5f,  0.5f, 0.0f},   0.f,    {0.f, 0.f, 1.f},    1.f}, // 2
-    {{-0.5f,  0.5f, 0.0f},  1.f,    {1.f, 1.f, 1.f},    1.f}, // 3
+struct Model {
+    std::vector<Vertex> vertices;
+    std::vector<uint32_t> indices;
+    size_t vertex_buffer_idx, index_buffer_idx;
+    size_t vertex_buffer_size, index_buffer_size;
 
-    // Apex vertex (z = 0.5)
-    {{0.0f, 0.0f, 0.5f},    .5f,    {1.f, 1.f, 0.f},    .5f}, // 4
+    void create_buffers(Engine::Renderer &renderer);
+    void refresh_buffers(Engine::Renderer &renderer);
 };
 
-const std::vector<uint16_t> indices = {
-    // plane
-    // 0, 1, 2,
-    // 2, 3, 0,
-    
+Model load_obj_model(std::string filename);
 
-    // Base (2 triangles)
-    2, 1, 0,
-    0, 3, 2,
-    
-    // Side faces (each triangle connects to apex)
-    0, 1, 4, // front
-    1, 2, 4, // right
-    2, 3, 4, // back
-    3, 0, 4, // left
-};
+}
 
+namespace std {
+    template<> struct hash<Game::Vertex> {
+        size_t operator()(Game::Vertex const& vertex) const {
+            size_t h1 = hash<glm::vec3>()(vertex.pos);
+            size_t h2 = hash<glm::vec3>()(vertex.color);
+            size_t h3 = hash<float>()(vertex.u);
+            size_t h4 = hash<float>()(vertex.v);
+
+            return (((h1 ^ (h2 << 1)) >> 1) ^ (h3 << 1)) ^ (h4 << 1);
+        }
+    };
 }

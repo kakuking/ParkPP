@@ -44,6 +44,9 @@ public:
     void cleanup();
 
     // Returns the index of the created buffer
+    size_t create_index_buffer(VkDeviceSize buffer_size);
+    size_t create_vertex_buffer(VkDeviceSize buffer_size);
+    size_t create_uniform_buffer(VkDeviceSize buffer_size);
     size_t create_buffer(VkDeviceSize buffer_size, uint32_t usage, uint32_t memory_props, bool per_frame=false);
     void update_buffer(size_t buffer_idx, void* src_data, size_t src_data_size);
 

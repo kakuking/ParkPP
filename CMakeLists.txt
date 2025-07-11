@@ -61,11 +61,37 @@ else()
   target_compile_options(PoggerPark PRIVATE -Wall -Wextra -pedantic -Wno-unused-parameter)
 endif()
 
-# Shader compilation
-file(GLOB SHADER_SOURCES "${CMAKE_SOURCE_DIR}/shaders/*.vert" "${CMAKE_SOURCE_DIR}/shaders/*.frag")
+# # Shader compilation
+# file(GLOB SHADER_SOURCES "${CMAKE_SOURCE_DIR}/shaders/*.vert" "${CMAKE_SOURCE_DIR}/shaders/*.frag")
 
-set(SHADER_OUTPUT_DIR "${CMAKE_BINARY_DIR}/release/shaders")
-file(MAKE_DIRECTORY ${SHADER_OUTPUT_DIR})
+# set(SHADER_OUTPUT_DIR "${CMAKE_BINARY_DIR}/release/shaders")
+# file(MAKE_DIRECTORY ${SHADER_OUTPUT_DIR})
+
+# foreach(SHADER ${SHADER_SOURCES})
+#     get_filename_component(FILE_NAME ${SHADER} NAME)
+#     set(COMPILED_SHADER "${SHADER_OUTPUT_DIR}/${FILE_NAME}.spv")
+
+#     add_custom_command(
+#         OUTPUT ${COMPILED_SHADER}
+#         COMMAND ${Vulkan_GLSLC_EXECUTABLE} ${SHADER} -o ${COMPILED_SHADER}
+#         DEPENDS ${SHADER}
+#         COMMENT "Compiling shader ${FILE_NAME}"
+#         VERBATIM
+#     )
+
+#     list(APPEND COMPILED_SHADERS ${COMPILED_SHADER})
+# endforeach()
+
+# # Add a custom target to compile all shaders
+# add_custom_target(CompileShaders ALL DEPENDS ${COMPILED_SHADERS})
+
+# # Ensure shaders are compiled before building the main executable
+# add_dependencies(PoggerPark CompileShaders)
+
+# Shader Compilation
+file(GLOB SHADER_SOURCES "${CMAKE_SOURCE_DIR}/resources/shaders/*.vert" "${CMAKE_SOURCE_DIR}/resources/shaders/*.frag")
+
+set(SHADER_OUTPUT_DIR "${CMAKE_BINARY_DIR}/$<CONFIG>/shaders")
 
 foreach(SHADER ${SHADER_SOURCES})
     get_filename_component(FILE_NAME ${SHADER} NAME)
@@ -82,8 +108,14 @@ foreach(SHADER ${SHADER_SOURCES})
     list(APPEND COMPILED_SHADERS ${COMPILED_SHADER})
 endforeach()
 
-# Add a custom target to compile all shaders
 add_custom_target(CompileShaders ALL DEPENDS ${COMPILED_SHADERS})
-
-# Ensure shaders are compiled before building the main executable
 add_dependencies(PoggerPark CompileShaders)
+
+# Resource Copy
+add_custom_command(
+    TARGET PoggerPark PRE_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${CMAKE_SOURCE_DIR}/resources
+            ${CMAKE_BINARY_DIR}/$<CONFIG>
+    COMMENT "Copying resources to build directory"
+)

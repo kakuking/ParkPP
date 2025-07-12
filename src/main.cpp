@@ -19,20 +19,19 @@ int main() {
     float height = (float) renderer.get_swapchain_extent().height;
     
     // Initializing Models  =====================================================================================
-    Game::Model room_model = Game::load_obj_model("./models/viking_room.obj");
-    Game::Model room_model_copy = Game::load_obj_model("./models/viking_room.obj");
-    
+    Game::Model room_model = Game::load_obj_model("./models/F1_2026.obj");
+    room_model.model_matrix = glm::rotate(glm::mat4(1.f), glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+
     room_model.create_buffers(renderer);
-    room_model_copy.create_buffers(renderer);
-    room_model_copy.model_matrix = glm::translate(glm::mat4(1.f), glm::vec3(0.f, 2.f, 0.f));
     
-    std::vector<Game::Model> models = {room_model, room_model_copy};
-    std::vector<std::string> texture_filenames = {"textures/viking_room.jpg", "textures/Checkerboard.png"};
+    std::vector<Game::Model> models = {room_model};
+    std::vector<std::string> texture_filenames = {"textures/Livery.jpg"};
     
     // Initializing UBO & Textures  =============================================================================
+    float camera_d = 10.f;
     Game::UniformBufferObject ubo{};
-    ubo.view = glm::lookAt(glm::vec3(4.f, 4.f, 4.f), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 0.f, 1.f));
-    ubo.proj = glm::perspective(glm::radians(45.f), width / height, 0.1f, 10.f);
+    ubo.view = glm::lookAt(glm::vec3(camera_d, camera_d, camera_d), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 0.f, 1.f));
+    ubo.proj = glm::perspective(glm::radians(45.f), width / height, 0.1f, 100.f);
     ubo.proj[1][1] *= -1;
     
     size_t ub_idx = renderer.create_uniform_group<Game::UniformBufferObject>(0, VK_SHADER_STAGE_VERTEX_BIT);
@@ -101,7 +100,7 @@ int main() {
         renderer.m_dispatch.cmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.get_pipeline_layout(), 0, 1, &cur_ds, 0, nullptr);
 
         // Updating the uniform buffers ======================================================================
-        ubo.view = glm::lookAt(glm::vec3(4.f, 4.f * cosf(total_time),  4.f * sinf(total_time)), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 0.f, 1.f));
+        ubo.view = glm::lookAt(glm::vec3(camera_d * cosf(total_time), camera_d * sinf(total_time),  camera_d), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 0.f, 1.f));
         renderer.update_uniform_group(ub_idx, &ubo);
 
         for(int mod = 0; mod < models.size(); mod++) {

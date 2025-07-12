@@ -28,11 +28,9 @@ Model load_obj_model(std::string filename) {
     std::vector<tinyobj::material_t> materials;
     std::string warn, err;
 
-    std::cout << "Loading model\n";
     if(!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, filename.c_str()))
     throw std::runtime_error(warn + err);
     
-    std::cout << "Loaded model\n";
     std::unordered_map<Vertex, uint32_t> unique_vertices{};
 
     for(const auto &shape: shapes) {
@@ -65,8 +63,8 @@ Model load_obj_model(std::string filename) {
         }
     }
 
-    std::cout << "Returning model\n";
-    fmt::println("Num Vertices: {}, num indices: {}\n\n", model_info.vertices.size(), model_info.indices.size());
+    std::cout << "Loaded model\n";
+    fmt::println("Filename: {}, Num Vertices: {}, num indices: {}", filename, model_info.vertices.size(), model_info.indices.size());
     
     return model_info;
 }

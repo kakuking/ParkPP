@@ -13,6 +13,13 @@ void TextureImage::cleanup(vkb::DispatchTable &dispatch_table) {
     dispatch_table.freeMemory(m_image_memory, nullptr);
 }
 
+void TextureImageArray::cleanup(vkb::DispatchTable &dispatch_table) {
+    dispatch_table.destroySampler(m_sampler, nullptr);
+    dispatch_table.destroyImageView(m_image_view, nullptr);
+    dispatch_table.destroyImage(m_image, nullptr);
+    dispatch_table.freeMemory(m_image_memory, nullptr);
+}
+
 void DepthImage::cleanup(vkb::DispatchTable &dispatch_table) {
     dispatch_table.destroyImageView(m_image_view, nullptr);
     dispatch_table.destroyImage(m_image, nullptr);
@@ -30,6 +37,17 @@ TextureImage Image::create_texture_image(std::string filename) {
     ret.m_filename = filename; 
     return ret; 
 }
+
+TextureImageArray Image::create_texture_image_array(std::vector<std::string> filenames, uint32_t width, uint32_t height, uint32_t layer_count) {
+    TextureImageArray ret{};
+    ret.m_filenames = filenames;
+    ret.m_width = width;
+    ret.m_height = height;
+    ret.layer_count = layer_count;
+
+    return ret;
+}
+
 
 DepthImage Image::create_depth_image(Renderer &renderer, uint32_t width, uint32_t height, VkFormat depth_format) {
     VkImage depth_image;
@@ -67,7 +85,6 @@ ColorImage Image::create_color_image(Renderer &renderer, uint32_t width, uint32_
     return ret;
 }
 
-
 void Image::initialize_texture_image(Renderer &renderer, TextureImage &tex) {
     int tex_width, tex_height, tex_channels;
 
@@ -101,6 +118,62 @@ void Image::initialize_texture_image(Renderer &renderer, TextureImage &tex) {
     tex.m_sampler = create_texture_sampler(renderer);
 }
 
+void Image::initialize_texture_image_array(Renderer &renderer, TextureImageArray &tex) {
+    if (tex.m_filenames.empty() || tex.layer_count == 0)
+        throw std::runtime_error("TextureImageArray has no filenames or zero layers");
+
+    if(tex.m_filenames.size() > tex.layer_count)
+        throw std::runtime_error("TextureImageArray has too many filenames or too few layers");
+    
+    uint32_t width = tex.m_width;
+    uint32_t height = tex.m_height;
+    uint32_t layers = tex.layer_count;
+
+
+    create_image(
+        renderer, width, height, 
+        VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_SAMPLE_COUNT_1_BIT, 
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, tex.m_image, tex.m_image_memory,
+        tex.layer_count
+    );
+
+    transition_image_layout(renderer, tex.m_image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, tex.layer_count);
+
+    uint32_t cur_layer = 0;
+    for(std::string &filename: tex.m_filenames) {
+        int tex_width, tex_height, tex_channels;
+
+        stbi_uc* pixels = stbi_load(filename.c_str(), &tex_width, &tex_height, &tex_channels, STBI_rgb_alpha);
+
+        if (static_cast<uint32_t>(tex_width) != tex.m_width && static_cast<uint32_t>(tex_height) != tex.m_height)
+            throw std::runtime_error("All images in an image array must be the same size!");
+
+        VkDeviceSize image_size = tex_width * tex_height * 4;
+
+        if(!pixels)
+            throw std::runtime_error("Failed to load Image image!");
+
+        size_t staging_buffer_idx = renderer.create_buffer(image_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+        renderer.update_buffer(staging_buffer_idx, pixels, static_cast<size_t>(image_size));
+
+        stbi_image_free(pixels);
+
+        renderer.copy_buffer_to_image(staging_buffer_idx, tex.m_image, static_cast<uint32_t>(tex_width), static_cast<uint32_t>(tex_height), cur_layer);
+
+        cur_layer++;
+    }
+
+    transition_image_layout(renderer, tex.m_image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, tex.layer_count);
+
+    // Create image view
+    tex.m_image_view = create_image_array_view(renderer, tex.m_image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT, tex.layer_count);
+
+    // Create image sampler
+    tex.m_sampler = create_texture_sampler(renderer);
+}
+
+
 VkImageView Image::create_image_view(Renderer &renderer, VkImage image, VkFormat format, VkImageAspectFlags aspect_flags) {
     VkImageViewCreateInfo viewInfo{};
     viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -121,7 +194,27 @@ VkImageView Image::create_image_view(Renderer &renderer, VkImage image, VkFormat
     return imageView;
 }
 
-void Image::create_image(Renderer &renderer, uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkSampleCountFlagBits num_samples, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory) {
+VkImageView Image::create_image_array_view(Renderer &renderer, VkImage image, VkFormat format, VkImageAspectFlags aspect_flags, uint32_t layer_count) {
+    VkImageViewCreateInfo viewInfo{};
+    viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    viewInfo.image = image;
+    viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
+    viewInfo.format = format;
+    viewInfo.subresourceRange.aspectMask = aspect_flags;
+    viewInfo.subresourceRange.baseMipLevel = 0;
+    viewInfo.subresourceRange.levelCount = 1;
+    viewInfo.subresourceRange.baseArrayLayer = 0;
+    viewInfo.subresourceRange.layerCount = layer_count;
+
+    VkImageView imageView;
+    if (renderer.m_dispatch.createImageView(&viewInfo, nullptr, &imageView) != VK_SUCCESS) {
+        throw std::runtime_error("failed to create Image image view!");
+    }
+
+    return imageView;
+}
+
+void Image::create_image(Renderer &renderer, uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkSampleCountFlagBits num_samples, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory, uint32_t layer_count) {
     VkImageCreateInfo image_info{};
     image_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     image_info.imageType = VK_IMAGE_TYPE_2D;
@@ -130,7 +223,7 @@ void Image::create_image(Renderer &renderer, uint32_t width, uint32_t height, Vk
     // no mipmapping rn
     image_info.extent.depth = 1;
     image_info.mipLevels = 1;
-    image_info.arrayLayers = 1;
+    image_info.arrayLayers = layer_count;
 
     image_info.format = format;
     image_info.tiling = tiling;
@@ -158,7 +251,7 @@ void Image::create_image(Renderer &renderer, uint32_t width, uint32_t height, Vk
     renderer.m_dispatch.bindImageMemory(image, imageMemory, 0);
 }
 
-void Image::transition_image_layout(Renderer &renderer, VkImage image, VkFormat format, VkImageLayout old_layout, VkImageLayout new_layout) {
+void Image::transition_image_layout(Renderer &renderer, VkImage image, VkFormat format, VkImageLayout old_layout, VkImageLayout new_layout, uint32_t layer_count) {
     VkCommandBuffer command_buffer = renderer.begin_single_time_command();
 
     VkImageMemoryBarrier barrier{};
@@ -183,7 +276,7 @@ void Image::transition_image_layout(Renderer &renderer, VkImage image, VkFormat 
     barrier.subresourceRange.baseMipLevel = 0;
     barrier.subresourceRange.levelCount = 1;
     barrier.subresourceRange.baseArrayLayer = 0;
-    barrier.subresourceRange.layerCount = 1;
+    barrier.subresourceRange.layerCount = layer_count;
     barrier.srcAccessMask = 0;
     barrier.dstAccessMask = 0;
 

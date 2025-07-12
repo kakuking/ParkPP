@@ -7,7 +7,7 @@ void DefaultPipeline::create_pipeline(Engine::Renderer &device, VkFormat image_f
     Engine::PipelineBuilder builder;
     std::vector<VkDescriptorSetLayout> layout = {device.get_descriptor_set_layout()};
 
-    builder.add_push_constants(sizeof(glm::mat4));
+    builder.add_push_constants(sizeof(glm::mat4) + sizeof(glm::vec4));
 
     builder.create_pipeline_layout(device, layout.data());
     

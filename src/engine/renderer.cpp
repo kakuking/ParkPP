@@ -39,6 +39,9 @@ void Renderer::initialize(
     for(TextureImage &tex: m_textures)
         Image::initialize_texture_image(*this, tex);
 
+    for(TextureImageArray &tex: m_texture_arrays)
+        Image::initialize_texture_image_array(*this, tex);
+
     // std::cout << "Creating desc pool!\n";
     create_descriptor_pool();
     // std::cout << "Creating desc set layout!\n";
@@ -162,6 +165,9 @@ void Renderer::cleanup() {
 
     for(int i = 0; i < m_textures.size(); i++)
         m_textures[i].cleanup(m_dispatch);
+
+    for(int i = 0; i < m_texture_arrays.size(); i++)
+        m_texture_arrays[i].cleanup(m_dispatch);
 
     // std::cout << "Cleaning up b\n";
     // destroy buffers
@@ -487,7 +493,7 @@ void Renderer::create_command_buffer() {
         throw std::runtime_error("Could not allocate command buffer");
 }
 
-void Renderer::copy_buffer_to_image(size_t buffer_idx, VkImage &image, uint32_t width, uint32_t height) {
+void Renderer::copy_buffer_to_image(size_t buffer_idx, VkImage &image, uint32_t width, uint32_t height, uint32_t layer) {
     VkCommandBuffer command_buffer = begin_single_time_command();
 
     VkBufferImageCopy region{};
@@ -497,7 +503,7 @@ void Renderer::copy_buffer_to_image(size_t buffer_idx, VkImage &image, uint32_t 
 
     region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
     region.imageSubresource.mipLevel = 0;
-    region.imageSubresource.baseArrayLayer = 0;
+    region.imageSubresource.baseArrayLayer = layer;
     region.imageSubresource.layerCount = 1;
 
     region.imageOffset = {0, 0, 0};
@@ -578,7 +584,6 @@ uint32_t Renderer::find_memory_type(uint32_t filter, VkMemoryPropertyFlags props
 void Renderer::add_texture(std::string filename, uint32_t binding) {
     TextureImage tex;
     tex = Image::create_texture_image(filename);
-    // tex.create_texture_image(*this, filename);
     m_textures.push_back(tex);
 
     VkDescriptorSetLayoutBinding texture_layout_binding{};
@@ -590,6 +595,23 @@ void Renderer::add_texture(std::string filename, uint32_t binding) {
 
     add_descriptor_set_layout_binding(texture_layout_binding, 0);
 }
+
+void Renderer::add_texture_array(std::vector<std::string> filename, uint32_t width, uint32_t height, uint32_t layer_count, uint32_t binding) {
+    TextureImageArray tex;
+    tex = Image::create_texture_image_array(filename, width, height, layer_count);
+
+    m_texture_arrays.push_back(tex);
+
+    VkDescriptorSetLayoutBinding texture_array_binding{};
+    texture_array_binding.binding = binding;
+    texture_array_binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    texture_array_binding.descriptorCount = 1;  // One descriptor for the whole array
+    texture_array_binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    texture_array_binding.pImmutableSamplers = nullptr;
+
+    add_descriptor_set_layout_binding(texture_array_binding, 0);
+}
+
 
 void Renderer::create_sync_objects() {
     m_image_available_semaphores.resize(MAX_FRAMES_IN_FLIGHT);
@@ -664,11 +686,13 @@ void Renderer::create_descriptor_sets(
 
     const size_t num_uniform_buffer_bindings = uniform_buffer_indices.size();
     const size_t num_images = m_textures.size();
+    const size_t num_image_arrays = m_texture_arrays.size();
 
     for (size_t frame = 0; frame < MAX_FRAMES_IN_FLIGHT; ++frame) {
         std::vector<VkWriteDescriptorSet> descriptor_writes;
         std::vector<VkDescriptorBufferInfo> buffer_infos(num_uniform_buffer_bindings); // needs to persist per frame
         std::vector<VkDescriptorImageInfo> image_infos(num_images); // needs to persist per frame
+        std::vector<VkDescriptorImageInfo> image_array_infos(num_image_arrays); // needs to persist per frame
 
         for (size_t binding = 0; binding < num_uniform_buffer_bindings; ++binding) {
             buffer_infos[binding].buffer = m_buffers[uniform_buffer_indices[binding][frame]];
@@ -700,6 +724,23 @@ void Renderer::create_descriptor_sets(
             descriptor_write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
             descriptor_write.descriptorCount = 1;
             descriptor_write.pImageInfo = &image_infos[binding];
+
+            descriptor_writes.push_back(descriptor_write);
+        }
+
+        for (size_t i = 0; i < num_image_arrays; ++i) {
+            image_array_infos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            image_array_infos[i].imageView = m_texture_arrays[i].m_image_view;
+            image_array_infos[i].sampler = m_texture_arrays[i].m_sampler;
+
+            VkWriteDescriptorSet descriptor_write{};
+            descriptor_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            descriptor_write.dstSet = m_descriptor_sets[frame];
+            descriptor_write.dstBinding = static_cast<uint32_t>(num_uniform_buffer_bindings + num_images + i); // <-- note offset
+            descriptor_write.dstArrayElement = 0;
+            descriptor_write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            descriptor_write.descriptorCount = 1;
+            descriptor_write.pImageInfo = &image_array_infos[i];
 
             descriptor_writes.push_back(descriptor_write);
         }

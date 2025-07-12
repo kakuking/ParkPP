@@ -59,9 +59,10 @@ public:
     VkCommandBuffer begin_single_time_command();
     void end_single_time_command(VkCommandBuffer command_buffer);
 
-    void copy_buffer_to_image(size_t buffer_idx, VkImage &image, uint32_t width, uint32_t height);
+    void copy_buffer_to_image(size_t buffer_idx, VkImage &image, uint32_t width, uint32_t height, uint32_t layer=0);
 
     void add_texture(std::string filename, uint32_t binding);
+    void add_texture_array(std::vector<std::string> filename, uint32_t width, uint32_t height, uint32_t layer_count, uint32_t binding);
 
     bool window_should_close();
     VkRenderPass get_render_pass() { return m_render_pass; }
@@ -149,6 +150,7 @@ private:
     std::vector<Pipeline*> m_pipelines;
 
     std::vector<TextureImage> m_textures;
+    std::vector<TextureImageArray> m_texture_arrays;
 
     // Window object
     Window m_window;

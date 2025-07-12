@@ -6,7 +6,7 @@ layout(location = 2) in vec3 inColor;
 layout(location = 3) in float v;
 
 layout(location = 0) out vec3 fragColor;
-layout(location = 1) out vec2 texCoord;
+layout(location = 1) out vec3 texCoord;
 
 layout(binding = 0) uniform UniformBufferObject {
     mat4 view;
@@ -15,11 +15,12 @@ layout(binding = 0) uniform UniformBufferObject {
 
 layout( push_constant ) uniform constants {
 	mat4 model;
+    vec4 idx;
 } pc;
 
 void main() {
     gl_Position = ubo.proj * ubo.view * pc.model * vec4(inPosition, 1.0);
     
     fragColor = inColor;
-    texCoord = vec2(u, v);
+    texCoord = vec3(u, v, pc.idx.x);
 }

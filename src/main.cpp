@@ -26,6 +26,7 @@ int main() {
     room_model_copy.model_matrix = glm::translate(glm::mat4(1.f), glm::vec3(0.f, 2.f, 0.f));
 
     std::vector<Game::Model> models = {room_model, room_model_copy};
+    std::vector<std::string> texture_filenames = {"textures/viking_room.jpg", "textures/Checkerboard.png"};
 
     size_t ub_size = sizeof(Game::UniformBufferObject);
     size_t first_uniform_buffer_idx = renderer.create_uniform_buffer(ub_size);
@@ -51,7 +52,9 @@ int main() {
     VkDescriptorBindingFlags ubo_binding_flags = 0; 
     renderer.add_descriptor_set_layout_binding(ubo_layout_binding, ubo_binding_flags);
 
-    renderer.add_texture("textures/viking_room.jpg", 1);
+    // renderer.add_texture("textures/viking_room.jpg", 1);
+    renderer.add_texture_array(texture_filenames, 1024, 1024, 2, 1);
+    // renderer.add_texture("textures/Checkerboard.png", 1);
 
     std::vector<Engine::Pipeline*> pipelines = {&pipeline};
     std::vector<std::vector<uint32_t>> uniform_buffer_indices;
@@ -126,10 +129,20 @@ int main() {
         ubo.proj[1][1] *= -1;
         renderer.update_buffer(first_uniform_buffer_idx + current_frame, &ubo, sizeof(ubo));
 
-        for(const Game::Model &model: models) {
+        for(int mod = 0; mod < models.size(); mod++) {
+            const Game::Model &model = models[mod];
             // Set model matrix
             // ubo.model = model.model_matrix;
-            renderer.m_dispatch.cmdPushConstants(command_buffer, pipeline.get_pipeline_layout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(glm::mat4), &model.model_matrix);
+            struct PC {
+                glm::mat4 model;
+                glm::vec4 idx;
+            };
+
+            PC pc{};
+            pc.model = model.model_matrix;
+            pc.idx = glm::vec4((float)mod, 0.0, 0.0, 0.0);
+
+            renderer.m_dispatch.cmdPushConstants(command_buffer, pipeline.get_pipeline_layout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PC), &pc);
             
             // Retreive vertex and index buffers
             VkBuffer vertex_buffers[] = {renderer.get_buffer(model.vertex_buffer_idx)};

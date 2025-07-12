@@ -23,17 +23,20 @@ namespace Engine {
 class Pipeline;
 class Texture;
 
+struct UniformBufferGroup {
+    size_t m_base_index;
+    size_t m_size;
+    uint32_t m_binding;
+};
+
 class Renderer {
 public:
-
     // Call this first
     void initialize_vulkan();
     // Create buffers & pipeline then call this next
     // [binding][frame]
     void initialize(
-        std::vector<Pipeline*> pipelines,
-        const std::vector<std::vector<uint32_t>>& uniform_buffer_indices,
-        const std::vector<std::vector<uint32_t>>& uniform_buffer_sizes
+        std::vector<Pipeline*> pipelines
     );
 
     // Return a new command buffer to be filled in
@@ -46,7 +49,6 @@ public:
     // Returns the index of the created buffer
     size_t create_index_buffer(VkDeviceSize buffer_size);
     size_t create_vertex_buffer(VkDeviceSize buffer_size);
-    size_t create_uniform_buffer(VkDeviceSize buffer_size);
     size_t create_buffer(VkDeviceSize buffer_size, uint32_t usage, uint32_t memory_props, bool per_frame=false);
     void update_buffer(size_t buffer_idx, void* src_data, size_t src_data_size);
 
@@ -63,6 +65,32 @@ public:
 
     void add_texture(std::string filename, uint32_t binding);
     void add_texture_array(std::vector<std::string> filename, uint32_t width, uint32_t height, uint32_t layer_count, uint32_t binding);
+
+    template<typename T>
+    size_t create_uniform_group(uint32_t binding, VkShaderStageFlags stage_flags) {
+        size_t ub_size = sizeof(T);
+        size_t first_uniform_buffer_idx = create_uniform_buffer(ub_size);
+
+        VkDescriptorSetLayoutBinding ubo_layout_binding{};
+        ubo_layout_binding.binding = binding;
+        ubo_layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        ubo_layout_binding.descriptorCount = 1;
+        ubo_layout_binding.stageFlags = stage_flags;
+        ubo_layout_binding.pImmutableSamplers = nullptr;
+
+        VkDescriptorBindingFlags ubo_binding_flags = 0; 
+        add_descriptor_set_layout_binding(ubo_layout_binding, ubo_binding_flags);
+
+        UniformBufferGroup new_ubg{};
+        new_ubg.m_base_index = first_uniform_buffer_idx;
+        new_ubg.m_binding = binding;
+        new_ubg.m_size = ub_size;
+
+        m_uniforms.push_back(new_ubg);
+
+        return m_uniforms.size() - 1;
+    }
+    void update_uniform_group(size_t idx, void* data);
 
     bool window_should_close();
     VkRenderPass get_render_pass() { return m_render_pass; }
@@ -95,13 +123,10 @@ private:
     void cleanup_swapchain();
 
     void create_descriptor_pool();
-    // [binding][frame]
-    void create_descriptor_sets(
-        const std::vector<std::vector<uint32_t>>& uniform_buffer_indices,
-        const std::vector<std::vector<uint32_t>>& uniform_buffer_sizes
-    );
+    void create_descriptor_sets();
     void create_descriptor_set_layout();
 
+    size_t create_uniform_buffer(VkDeviceSize buffer_size);
     void destroy_buffer(int buffer_idx);
     void destroy_pipeline(int pipeline_idx);
 
@@ -110,7 +135,6 @@ private:
     VkFormat find_supported_format(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features);
     bool has_stencil_component(VkFormat format) { return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT; }
     VkSampleCountFlagBits get_max_usable_sample_count();
-
     
     // Vulkan context
     vkb::Instance m_instance;
@@ -146,11 +170,12 @@ private:
     // buffers and buffer_memories
     std::vector<VkBuffer> m_buffers;
     std::vector<VkDeviceMemory> m_buffer_memories;
-
-    std::vector<Pipeline*> m_pipelines;
+    std::vector<UniformBufferGroup> m_uniforms;
 
     std::vector<TextureImage> m_textures;
     std::vector<TextureImageArray> m_texture_arrays;
+    
+    std::vector<Pipeline*> m_pipelines;
 
     // Window object
     Window m_window;

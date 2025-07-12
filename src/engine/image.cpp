@@ -127,8 +127,6 @@ void Image::initialize_texture_image_array(Renderer &renderer, TextureImageArray
     
     uint32_t width = tex.m_width;
     uint32_t height = tex.m_height;
-    uint32_t layers = tex.layer_count;
-
 
     create_image(
         renderer, width, height, 

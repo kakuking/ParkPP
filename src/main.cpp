@@ -10,66 +10,42 @@
 #include <chrono>
 
 int main() {    
-    // Engine::Renderer renderer;
+    // Initializing Vulkan  =====================================================================================
     Engine::Renderer renderer;
     Game::DefaultPipeline pipeline;
     renderer.initialize_vulkan();
-
+    
     float width = (float) renderer.get_swapchain_extent().width;
     float height = (float) renderer.get_swapchain_extent().height;
-
+    
+    // Initializing Models  =====================================================================================
     Game::Model room_model = Game::load_obj_model("./models/viking_room.obj");
-    room_model.create_buffers(renderer);
-
     Game::Model room_model_copy = Game::load_obj_model("./models/viking_room.obj");
+    
+    room_model.create_buffers(renderer);
     room_model_copy.create_buffers(renderer);
     room_model_copy.model_matrix = glm::translate(glm::mat4(1.f), glm::vec3(0.f, 2.f, 0.f));
-
+    
     std::vector<Game::Model> models = {room_model, room_model_copy};
     std::vector<std::string> texture_filenames = {"textures/viking_room.jpg", "textures/Checkerboard.png"};
-
-    size_t ub_size = sizeof(Game::UniformBufferObject);
-    size_t first_uniform_buffer_idx = renderer.create_uniform_buffer(ub_size);
-
-    // Initialize uniform buffers!
+    
+    // Initializing UBO & Textures  =============================================================================
     Game::UniformBufferObject ubo{};
-    // ubo.model = glm::rotate(glm::mat4(1.f), glm::radians(90.f), glm::vec3(0.f, 0.f, 1.f));
-    ubo.view = glm::lookAt(glm::vec3(2.f, 2.f, 2.f), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 0.f, 1.f));
-    ubo.proj = glm::perspective(glm::radians(45.f), width / height, 0.f, 10.f);
+    ubo.view = glm::lookAt(glm::vec3(4.f, 4.f, 4.f), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 0.f, 1.f));
+    ubo.proj = glm::perspective(glm::radians(45.f), width / height, 0.1f, 10.f);
     ubo.proj[1][1] *= -1;
-
-    for(int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-        renderer.update_buffer(first_uniform_buffer_idx + i, &ubo, sizeof(ubo));
-    }
-
-    VkDescriptorSetLayoutBinding ubo_layout_binding{};
-    ubo_layout_binding.binding = 0;
-    ubo_layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    ubo_layout_binding.descriptorCount = 1;
-    ubo_layout_binding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-    ubo_layout_binding.pImmutableSamplers = nullptr;
-
-    VkDescriptorBindingFlags ubo_binding_flags = 0; 
-    renderer.add_descriptor_set_layout_binding(ubo_layout_binding, ubo_binding_flags);
-
+    
+    size_t ub_idx = renderer.create_uniform_group<Game::UniformBufferObject>(0, VK_SHADER_STAGE_VERTEX_BIT);
+    renderer.update_uniform_group(ub_idx, &ubo);
+    
     // renderer.add_texture("textures/viking_room.jpg", 1);
     renderer.add_texture_array(texture_filenames, 1024, 1024, 2, 1);
-    // renderer.add_texture("textures/Checkerboard.png", 1);
-
-    std::vector<Engine::Pipeline*> pipelines = {&pipeline};
-    std::vector<std::vector<uint32_t>> uniform_buffer_indices;
-    std::vector<std::vector<uint32_t>> uniform_buffer_sizes;
     
-    std::vector<uint32_t> temp_indices, temp_bindings;
-    for(int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-        temp_indices.push_back((uint32_t)first_uniform_buffer_idx);
-        temp_bindings.push_back((uint32_t) ub_size);
-    }
-    uniform_buffer_indices.push_back(temp_indices);
-    uniform_buffer_sizes.push_back(temp_bindings);
-
-    renderer.initialize(pipelines, uniform_buffer_indices, uniform_buffer_sizes);
-
+    // Initializing Program =====================================================================================
+    std::vector<Engine::Pipeline*> pipelines = {&pipeline};
+    renderer.initialize(pipelines);
+    
+    // Starting Game Loop   =====================================================================================
     int current_frame = 0;
     uint32_t image_index = 0;
     VkCommandBuffer command_buffer;
@@ -124,15 +100,13 @@ int main() {
         VkDescriptorSet cur_ds = renderer.get_descriptor_set(current_frame);
         renderer.m_dispatch.cmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.get_pipeline_layout(), 0, 1, &cur_ds, 0, nullptr);
 
-        ubo.view = glm::lookAt(glm::vec3(2.f, 2.f * cosf(total_time),  2.f * sinf(total_time)), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 0.f, 1.f));
-        ubo.proj = glm::perspective(glm::radians(45.f), width / height, 0.1f, 10.f);
-        ubo.proj[1][1] *= -1;
-        renderer.update_buffer(first_uniform_buffer_idx + current_frame, &ubo, sizeof(ubo));
+        // Updating the uniform buffers ======================================================================
+        ubo.view = glm::lookAt(glm::vec3(4.f, 4.f * cosf(total_time),  4.f * sinf(total_time)), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 0.f, 1.f));
+        renderer.update_uniform_group(ub_idx, &ubo);
 
         for(int mod = 0; mod < models.size(); mod++) {
             const Game::Model &model = models[mod];
-            // Set model matrix
-            // ubo.model = model.model_matrix;
+            // Set push constants ============================================================================
             struct PC {
                 glm::mat4 model;
                 glm::vec4 idx;
@@ -155,8 +129,6 @@ int main() {
             
             // draw call
             renderer.m_dispatch.cmdDrawIndexed(command_buffer, static_cast<uint32_t>(model.indices.size()), 1, 0, 0, 0);
-
-            // break;
         }
 
         renderer.m_dispatch.cmdEndRenderPass(command_buffer);

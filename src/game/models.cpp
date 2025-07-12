@@ -1,4 +1,5 @@
 #include <game/models.h>
+#include <fmt/format.h>
 
 namespace Game {
 
@@ -27,9 +28,11 @@ Model load_obj_model(std::string filename) {
     std::vector<tinyobj::material_t> materials;
     std::string warn, err;
 
+    std::cout << "Loading model\n";
     if(!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, filename.c_str()))
-        throw std::runtime_error(warn + err);
-
+    throw std::runtime_error(warn + err);
+    
+    std::cout << "Loaded model\n";
     std::unordered_map<Vertex, uint32_t> unique_vertices{};
 
     for(const auto &shape: shapes) {
@@ -42,8 +45,13 @@ Model load_obj_model(std::string filename) {
                 attrib.vertices[3 * index.vertex_index + 2]
             };
 
-            vertex.u = attrib.texcoords[2*index.texcoord_index + 0];
-            vertex.v = 1.f - attrib.texcoords[2*index.texcoord_index + 1];
+            if (index.texcoord_index >= 0) {
+                vertex.u = attrib.texcoords[2 * index.texcoord_index + 0];
+                vertex.v = 1.f - attrib.texcoords[2 * index.texcoord_index + 1];
+            } else {
+                vertex.u = 0.0f;
+                vertex.v = 0.0f;
+            }
 
             vertex.color = {1.f, 1.f, 1.f};
 
@@ -57,6 +65,9 @@ Model load_obj_model(std::string filename) {
         }
     }
 
+    std::cout << "Returning model\n";
+    fmt::println("Num Vertices: {}, num indices: {}\n\n", model_info.vertices.size(), model_info.indices.size());
+    
     return model_info;
 }
 }

@@ -24,9 +24,7 @@ void Renderer::initialize_vulkan() {
 }
 
 void Renderer::initialize(
-    std::vector<Pipeline*> pipelines,
-    const std::vector<std::vector<uint32_t>>& uniform_buffer_indices,
-    const std::vector<std::vector<uint32_t>>& uniform_buffer_sizes
+    std::vector<Pipeline*> pipelines
 ) {
     // std::cout << "setting pipelines window!\n";
     m_pipelines = pipelines;
@@ -47,7 +45,7 @@ void Renderer::initialize(
     // std::cout << "Creating desc set layout!\n";
     create_descriptor_set_layout();
     // std::cout << "Creating desc sets!\n";
-    create_descriptor_sets(uniform_buffer_indices, uniform_buffer_sizes);
+    create_descriptor_sets();
 
     // std::cout << "Creating pipelines!\n";
     for(Pipeline* pipeline: m_pipelines)
@@ -668,10 +666,21 @@ void Renderer::create_descriptor_set_layout() {
 }
 
 // [binding][frame]
-void Renderer::create_descriptor_sets(
-    const std::vector<std::vector<uint32_t>>& uniform_buffer_indices, 
-    const std::vector<std::vector<uint32_t>>& uniform_buffer_sizes
-) {
+void Renderer::create_descriptor_sets() {
+    std::vector<std::vector<uint32_t>> uniform_buffer_indices; 
+    std::vector<std::vector<uint32_t>> uniform_buffer_sizes;
+    for(int i = 0; i < m_uniforms.size(); i++) {
+        std::vector<uint32_t> temp_indices, temp_sizes;
+        for(int j = 0; j < MAX_FRAMES_IN_FLIGHT; j++) {
+            temp_indices.push_back((uint32_t) m_uniforms[i].m_base_index);
+            temp_sizes.push_back((uint32_t) m_uniforms[i].m_size);
+            // new_temp_indices.push_back((uint32_t) new_first_uniform_buffer_idx);
+            // new_temp_bindings.push_back((uint32_t) ub_size);
+        }
+        uniform_buffer_indices.push_back(temp_indices);
+        uniform_buffer_sizes.push_back(temp_sizes);
+    }
+
     std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, m_descriptor_set_layout);
     
     VkDescriptorSetAllocateInfo alloc_info{};
@@ -796,6 +805,13 @@ void Renderer::create_color_resources() {
     m_color_image = Image::create_color_image(*this, m_swapchain.extent.width, m_swapchain.extent.height, color_format, m_msaa_samples);
 }
 
+// template<typename T>
+// size_t Renderer::create_uniform_group(uint32_t binding, VkShaderStageFlags stage_flags)
 
+void Renderer::update_uniform_group(size_t idx, void* data) {
+    for(int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        update_buffer(m_uniforms[idx].m_base_index + i, data, m_uniforms[idx].m_size);
+    }
+}
 
 }

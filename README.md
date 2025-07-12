@@ -4,7 +4,7 @@
 
 A very simple game "engine" in C++. Only the Vulkan SDK has to be pre-installed, all other libraries are fetched using CMake FetchContent!
 
-I made this since I am very interested in Computer Graphics for a really long time, I have attempted something like this many times. This is maybe the furthest I have got into actually doing it and keeping it clean.
+I made this since I have been very interested in Computer Graphics for a really long time, I have attempted something like this many times. This is maybe the furthest I have got into actually doing it and keeping it clean.
 
 Most of the Vulkan Functionalities are quite basic, I picked them up from the [Vulkan-Tutorial](https://vulkan-tutorial.com/Introduction). If you are learning vulkan I highly recommend going through the tutorial 😊
 

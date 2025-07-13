@@ -17,7 +17,8 @@ Most of the Vulkan Functionalities are quite basic, I picked them up from the [V
 5. Model loading (currently hardcoded) 🗽
 6. Anti-aliasing ⬛
 7. Texture Arrays 🖼🖼
-8. Abstracted UBOs ⚙⚙
+8. Abstracted UBOs and render pass stuff ⚙⚙
+9. Multiple textures in one model 🖼🖼🖼
 
 ## Things to implement
 

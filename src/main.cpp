@@ -64,40 +64,9 @@ int main() {
             fmt::println("{}", fps);
         }
 
-        VkRenderPassBeginInfo render_pass_info{};
-        render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-        render_pass_info.renderPass = renderer.get_render_pass();
-        render_pass_info.framebuffer = renderer.get_framebuffer(image_index);
-        render_pass_info.renderArea.offset = {0, 0};
-        render_pass_info.renderArea.extent = renderer.get_swapchain_extent();
-
-        std::vector<VkClearValue> clear_colors(2);
-        clear_colors[0].color = {{0.f, 0.f, 0.f, 1.f}};
-        clear_colors[1].depthStencil = {1.f, 0};
-
-        render_pass_info.clearValueCount = static_cast<uint32_t>(clear_colors.size());
-        render_pass_info.pClearValues = clear_colors.data();
-
-        renderer.m_dispatch.cmdBeginRenderPass(command_buffer, &render_pass_info, VK_SUBPASS_CONTENTS_INLINE);
-
-        renderer.m_dispatch.cmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.get_pipeline());
-
-        VkViewport viewport{};
-        viewport.x = 0.f;
-        viewport.y = 0.f;
-        viewport.width = static_cast<float>(renderer.get_swapchain_extent().width);
-        viewport.height = static_cast<float>(renderer.get_swapchain_extent().height);
-        viewport.minDepth = 0.f;
-        viewport.maxDepth = 1.f;
-        renderer.m_dispatch.cmdSetViewport(command_buffer, 0, 1, &viewport);
-
-        VkRect2D scissor{};
-        scissor.offset = {0, 0};
-        scissor.extent = renderer.get_swapchain_extent();
-        renderer.m_dispatch.cmdSetScissor(command_buffer, 0, 1, &scissor);
-
-        VkDescriptorSet cur_ds = renderer.get_descriptor_set(current_frame);
-        renderer.m_dispatch.cmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.get_pipeline_layout(), 0, 1, &cur_ds, 0, nullptr);
+        renderer.begin_render_pass(command_buffer, image_index);
+        renderer.bind_pipeline_and_descriptors(command_buffer, 0, current_frame);
+        renderer.set_default_viewport_and_scissor(command_buffer);
 
         // Updating the uniform buffers ======================================================================
         ubo.view = glm::lookAt(glm::vec3(camera_d * cosf(total_time), camera_d * sinf(total_time),  camera_d), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 0.f, 1.f));
@@ -106,7 +75,7 @@ int main() {
         for(int mod = 0; mod < models.size(); mod++) {
             const Game::Model &model = models[mod];
 
-            // Retreive vertex and index buffers
+            // Retreive vertex and index buffers =============================================================
             VkBuffer vertex_buffers[] = {renderer.get_buffer(model.vertex_buffer_idx)};
             VkDeviceSize offsets[] = {0};
             VkBuffer index_buffer = renderer.get_buffer(model.index_buffer_idx);
@@ -116,26 +85,13 @@ int main() {
             renderer.m_dispatch.cmdBindIndexBuffer(command_buffer, index_buffer, 0, VK_INDEX_TYPE_UINT32);
 
             // Set push constants ============================================================================
-            struct PC {
-                glm::mat4 model;
-                glm::vec4 idx;
-            };
-
-            PC pc{};
-            pc.model = model.model_matrix;
-            pc.idx = glm::vec4(0.0, 0.0, 0.0, 0.0);
-
-            renderer.m_dispatch.cmdPushConstants(command_buffer, pipeline.get_pipeline_layout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PC), &pc);
+            renderer.m_dispatch.cmdPushConstants(command_buffer, pipeline.get_pipeline_layout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(glm::mat4), &model.model_matrix);
             
             // draw call
             renderer.m_dispatch.cmdDrawIndexed(command_buffer, static_cast<uint32_t>(model.indices.size()), 1, 0, 0, 0);
         }
 
-        renderer.m_dispatch.cmdEndRenderPass(command_buffer);
-
-        if(renderer.m_dispatch.endCommandBuffer(command_buffer) != VK_SUCCESS)
-            throw std::runtime_error("Failed to record command buffers!");
-
+        renderer.end_render_pass(command_buffer);
         renderer.end_frame();
     }
 

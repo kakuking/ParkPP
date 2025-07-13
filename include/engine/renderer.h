@@ -41,6 +41,12 @@ public:
 
     // Return a new command buffer to be filled in
     bool begin_frame(int &current_frame, uint32_t &image_index, VkCommandBuffer &out_buffer);
+
+    void begin_render_pass(VkCommandBuffer &command_buffer, uint32_t image_index);
+    void bind_pipeline_and_descriptors(VkCommandBuffer &command_buffer, int pipeline_idx, int current_frame);
+    void set_default_viewport_and_scissor(VkCommandBuffer &command_buffer);
+    void end_render_pass(VkCommandBuffer command_buffer);
+    
     // Draw to the swapchain and perform sync
     void end_frame();
     

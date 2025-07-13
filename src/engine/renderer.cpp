@@ -107,6 +107,56 @@ bool Renderer::begin_frame(int &current_frame, uint32_t &image_index, VkCommandB
     return true;
 }
 
+void Renderer::begin_render_pass(VkCommandBuffer &command_buffer, uint32_t image_index) {
+    VkRenderPassBeginInfo render_pass_info{};
+    render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    render_pass_info.renderPass = get_render_pass();
+    render_pass_info.framebuffer = get_framebuffer(image_index);
+    render_pass_info.renderArea.offset = {0, 0};
+    render_pass_info.renderArea.extent = get_swapchain_extent();
+
+    std::vector<VkClearValue> clear_colors(2);
+    clear_colors[0].color = {{0.f, 0.f, 0.f, 1.f}};
+    clear_colors[1].depthStencil = {1.f, 0};
+
+    render_pass_info.clearValueCount = static_cast<uint32_t>(clear_colors.size());
+    render_pass_info.pClearValues = clear_colors.data();
+
+    m_dispatch.cmdBeginRenderPass(command_buffer, &render_pass_info, VK_SUBPASS_CONTENTS_INLINE);
+}
+
+void Renderer::bind_pipeline_and_descriptors(VkCommandBuffer &command_buffer, int pipeline_idx, int current_frame) {
+    m_dispatch.cmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelines[pipeline_idx]->get_pipeline());
+
+    VkDescriptorSet cur_ds = get_descriptor_set(current_frame);
+    m_dispatch.cmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelines[pipeline_idx]->get_pipeline_layout(), 0, 1, &cur_ds, 0, nullptr);
+
+}
+
+void Renderer::set_default_viewport_and_scissor(VkCommandBuffer &command_buffer) {
+    VkViewport viewport{};
+    viewport.x = 0.f;
+    viewport.y = 0.f;
+    viewport.width = static_cast<float>(get_swapchain_extent().width);
+    viewport.height = static_cast<float>(get_swapchain_extent().height);
+    viewport.minDepth = 0.f;
+    viewport.maxDepth = 1.f;
+    m_dispatch.cmdSetViewport(command_buffer, 0, 1, &viewport);
+
+    VkRect2D scissor{};
+    scissor.offset = {0, 0};
+    scissor.extent = get_swapchain_extent();
+    m_dispatch.cmdSetScissor(command_buffer, 0, 1, &scissor);
+}
+
+void Renderer::end_render_pass(VkCommandBuffer command_buffer) {
+    m_dispatch.cmdEndRenderPass(command_buffer);
+
+    if(m_dispatch.endCommandBuffer(command_buffer) != VK_SUCCESS)
+        throw std::runtime_error("Failed to record command buffers!");
+}
+
+
 void Renderer::end_frame() {
     VkSubmitInfo submit_info{};
     submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;

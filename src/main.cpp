@@ -19,13 +19,13 @@ int main() {
     float height = (float) renderer.get_swapchain_extent().height;
     
     // Initializing Models  =====================================================================================
-    Game::Model room_model = Game::load_obj_model("./models/F1_2026.obj");
+    // Game::Model room_model = Game::load_obj_model("./models/F1_2026.obj", 0.f);
+    Game::Model room_model = Game::load_obj_model_with_material("./models/F1_2026.obj", 0.f, "./models");
     room_model.model_matrix = glm::rotate(glm::mat4(1.f), glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-
     room_model.create_buffers(renderer);
     
     std::vector<Game::Model> models = {room_model};
-    std::vector<std::string> texture_filenames = {"textures/Livery.jpg"};
+    std::vector<std::string> texture_filenames = {"textures/Livery.jpg", "textures/Checkerboard.png", "textures/WheelCovers.jpg", "textures/TyreSoft.png"};
     
     // Initializing UBO & Textures  =============================================================================
     float camera_d = 10.f;
@@ -38,7 +38,7 @@ int main() {
     renderer.update_uniform_group(ub_idx, &ubo);
     
     // renderer.add_texture("textures/viking_room.jpg", 1);
-    renderer.add_texture_array(texture_filenames, 1024, 1024, 2, 1);
+    renderer.add_texture_array(texture_filenames, 1024, 1024, 4, 1);
     
     // Initializing Program =====================================================================================
     std::vector<Engine::Pipeline*> pipelines = {&pipeline};
@@ -105,18 +105,7 @@ int main() {
 
         for(int mod = 0; mod < models.size(); mod++) {
             const Game::Model &model = models[mod];
-            // Set push constants ============================================================================
-            struct PC {
-                glm::mat4 model;
-                glm::vec4 idx;
-            };
 
-            PC pc{};
-            pc.model = model.model_matrix;
-            pc.idx = glm::vec4((float)mod, 0.0, 0.0, 0.0);
-
-            renderer.m_dispatch.cmdPushConstants(command_buffer, pipeline.get_pipeline_layout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PC), &pc);
-            
             // Retreive vertex and index buffers
             VkBuffer vertex_buffers[] = {renderer.get_buffer(model.vertex_buffer_idx)};
             VkDeviceSize offsets[] = {0};
@@ -125,6 +114,18 @@ int main() {
             // Bind vertex and index buffers
             renderer.m_dispatch.cmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers, offsets);
             renderer.m_dispatch.cmdBindIndexBuffer(command_buffer, index_buffer, 0, VK_INDEX_TYPE_UINT32);
+
+            // Set push constants ============================================================================
+            struct PC {
+                glm::mat4 model;
+                glm::vec4 idx;
+            };
+
+            PC pc{};
+            pc.model = model.model_matrix;
+            pc.idx = glm::vec4(0.0, 0.0, 0.0, 0.0);
+
+            renderer.m_dispatch.cmdPushConstants(command_buffer, pipeline.get_pipeline_layout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PC), &pc);
             
             // draw call
             renderer.m_dispatch.cmdDrawIndexed(command_buffer, static_cast<uint32_t>(model.indices.size()), 1, 0, 0, 0);

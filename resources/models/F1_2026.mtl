@@ -1,0 +1,43 @@
+# Blender 4.1.1 MTL File: 'F1 2026 Release Car.blend'
+# www.blender.org
+
+newmtl Livery
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd G:/3D/Blender/Projects/F1 2026 Release Car/textures/Livery.png
+map_Ns G:/3D/Blender/Projects/F1 2026 Release Car/textures/RoughnessLivery.png
+map_refl G:/3D/Blender/Projects/F1 2026 Release Car/textures/MetallicLivery.png
+
+newmtl RearLight
+Ns 360.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 2
+
+newmtl WheelCovers
+Ns 623.934387
+Ka 0.592784 0.592784 0.592784
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+map_Kd G:/3D/Blender/Projects/F1 2026 Release Car/textures/WheelCovers.png
+
+newmtl Wheels
+Ns 325.960510
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd G:/3D/Blender/Projects/F1 2026 Release Car/textures/TyreSoft.png

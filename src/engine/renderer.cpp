@@ -2,8 +2,11 @@
 #include <engine/pipeline.h>
 
 #include <engine/image.h>
+#include <engine/models.h>
+#include <engine/pipeline.h>
 
 #include <iostream>
+#include <fmt/format.h>
 
 namespace Engine {
 
@@ -21,6 +24,19 @@ void Renderer::initialize_vulkan() {
     // std::cout << "Creating swapchain!\n";
     create_swapchains();
     // create_pipeline();
+    m_shadow_pipeline = new ShadowPipeline();
+    m_shadow_pipeline->create_pipeline(*this, m_swapchain.image_format);
+
+    m_shadow_render_pass = m_shadow_pipeline->get_render_pass();
+
+    VkDescriptorSetLayoutBinding shadow_map_binding{};
+    shadow_map_binding.binding = 0;
+    shadow_map_binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    shadow_map_binding.descriptorCount = 1;  // One descriptor for the whole array
+    shadow_map_binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    shadow_map_binding.pImmutableSamplers = nullptr;
+
+    add_descriptor_set_layout_binding(shadow_map_binding, 0);
 }
 
 void Renderer::initialize(
@@ -39,6 +55,8 @@ void Renderer::initialize(
 
     for(TextureImageArray &tex: m_texture_arrays)
         Image::initialize_texture_image_array(*this, tex);
+    
+    initialize_lights();
 
     // std::cout << "Creating desc pool!\n";
     create_descriptor_pool();
@@ -149,7 +167,7 @@ void Renderer::set_default_viewport_and_scissor(VkCommandBuffer &command_buffer)
     m_dispatch.cmdSetScissor(command_buffer, 0, 1, &scissor);
 }
 
-void Renderer::end_render_pass(VkCommandBuffer command_buffer) {
+void Renderer::end_render_pass_and_command_buffer(VkCommandBuffer command_buffer) {
     m_dispatch.cmdEndRenderPass(command_buffer);
 
     if(m_dispatch.endCommandBuffer(command_buffer) != VK_SUCCESS)
@@ -204,6 +222,11 @@ void Renderer::end_frame() {
 void Renderer::cleanup() {
     m_dispatch.deviceWaitIdle();
 
+    m_shadow_map_image.cleanup(m_dispatch);
+
+    for(auto &light: m_lights)
+        light.cleanup(m_dispatch);
+    
     // std::cout << "Cleaning up swapchain!\n";
     cleanup_swapchain();
     // std::cout << "Cleaning up dp\n";
@@ -236,6 +259,8 @@ void Renderer::cleanup() {
     // destroy pipelines
     for(int i = 0; i < m_pipelines.size(); i++)
         destroy_pipeline(i);
+
+    m_shadow_pipeline->destroy_pipeline(m_dispatch);
 
     // std::cout << "Cleaning up dev\n";
     vkb::destroy_device(m_device);
@@ -606,7 +631,7 @@ void Renderer::create_descriptor_pool() {
     pool_sizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     pool_sizes[0].descriptorCount = static_cast<uint32_t>(num_buffer_descriptor_sets * MAX_FRAMES_IN_FLIGHT);
     pool_sizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    pool_sizes[1].descriptorCount = static_cast<uint32_t>(num_image_descriptor_sets * MAX_FRAMES_IN_FLIGHT);
+    pool_sizes[1].descriptorCount = static_cast<uint32_t>((num_image_descriptor_sets + 1) * MAX_FRAMES_IN_FLIGHT); // 1 for the shadow map sampler
 
     VkDescriptorPoolCreateInfo pool_info{};
     pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -630,6 +655,8 @@ uint32_t Renderer::find_memory_type(uint32_t filter, VkMemoryPropertyFlags props
 }
 
 void Renderer::add_texture(std::string filename, uint32_t binding) {
+    if(binding == 0)
+        throw std::runtime_error("Binding 0 is reserved for teh shadowmap in the frag shader");
     TextureImage tex;
     tex = Image::create_texture_image(filename);
     m_textures.push_back(tex);
@@ -645,6 +672,9 @@ void Renderer::add_texture(std::string filename, uint32_t binding) {
 }
 
 void Renderer::add_texture_array(std::vector<std::string> filename, uint32_t width, uint32_t height, uint32_t layer_count, uint32_t binding) {
+    if(binding == 0)
+        throw std::runtime_error("Binding 0 is reserved for teh shadowmap in the frag shader");
+
     TextureImageArray tex;
     tex = Image::create_texture_image_array(filename, width, height, layer_count);
 
@@ -698,12 +728,8 @@ void Renderer::add_descriptor_set_layout_binding(VkDescriptorSetLayoutBinding bi
 
 void Renderer::create_descriptor_set_layout() {
 
-    // VkDescriptorSetLayoutBinding ubo_layout_binding{};
-    // ubo_layout_binding.binding = 0;
-    // ubo_layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    // ubo_layout_binding.descriptorCount = 1;
-    // ubo_layout_binding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-    // ubo_layout_binding.pImmutableSamplers = nullptr;
+    // for (int i = 0; i < m_descriptor_bindings.size(); i++)
+    //    fmt::println("Binding {}", m_descriptor_bindings[i].binding);
 
     VkDescriptorSetLayoutCreateInfo layout_info{};
     layout_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -724,8 +750,6 @@ void Renderer::create_descriptor_sets() {
         for(int j = 0; j < MAX_FRAMES_IN_FLIGHT; j++) {
             temp_indices.push_back((uint32_t) m_uniforms[i].m_base_index);
             temp_sizes.push_back((uint32_t) m_uniforms[i].m_size);
-            // new_temp_indices.push_back((uint32_t) new_first_uniform_buffer_idx);
-            // new_temp_bindings.push_back((uint32_t) ub_size);
         }
         uniform_buffer_indices.push_back(temp_indices);
         uniform_buffer_sizes.push_back(temp_sizes);
@@ -753,6 +777,22 @@ void Renderer::create_descriptor_sets() {
         std::vector<VkDescriptorImageInfo> image_infos(num_images); // needs to persist per frame
         std::vector<VkDescriptorImageInfo> image_array_infos(num_image_arrays); // needs to persist per frame
 
+        VkDescriptorImageInfo shadow_image_info{};
+        shadow_image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        shadow_image_info.imageView = m_shadow_map_image.m_image_view;  // <- your shadow map array view
+        shadow_image_info.sampler = m_shadow_map_image.m_sampler;       // <- its sampler
+
+        VkWriteDescriptorSet shadow_write{};
+        shadow_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        shadow_write.dstSet = m_descriptor_sets[frame];
+        shadow_write.dstBinding = 0;
+        shadow_write.dstArrayElement = 0;
+        shadow_write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        shadow_write.descriptorCount = 1;
+        shadow_write.pImageInfo = &shadow_image_info;
+
+        descriptor_writes.push_back(shadow_write);
+
         for (size_t binding = 0; binding < num_uniform_buffer_bindings; ++binding) {
             buffer_infos[binding].buffer = m_buffers[uniform_buffer_indices[binding][frame]];
             buffer_infos[binding].offset = 0;
@@ -761,7 +801,7 @@ void Renderer::create_descriptor_sets() {
             VkWriteDescriptorSet descriptor_write{};
             descriptor_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
             descriptor_write.dstSet = m_descriptor_sets[frame];
-            descriptor_write.dstBinding = static_cast<uint32_t>(binding);
+            descriptor_write.dstBinding = static_cast<uint32_t>(binding + 1);
             descriptor_write.dstArrayElement = 0;
             descriptor_write.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
             descriptor_write.descriptorCount = 1;
@@ -778,7 +818,7 @@ void Renderer::create_descriptor_sets() {
             VkWriteDescriptorSet descriptor_write{};
             descriptor_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
             descriptor_write.dstSet = m_descriptor_sets[frame];
-            descriptor_write.dstBinding = static_cast<uint32_t>(binding + num_uniform_buffer_bindings);
+            descriptor_write.dstBinding = static_cast<uint32_t>(binding + 1 + num_uniform_buffer_bindings);
             descriptor_write.dstArrayElement = 0;
             descriptor_write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
             descriptor_write.descriptorCount = 1;
@@ -795,7 +835,7 @@ void Renderer::create_descriptor_sets() {
             VkWriteDescriptorSet descriptor_write{};
             descriptor_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
             descriptor_write.dstSet = m_descriptor_sets[frame];
-            descriptor_write.dstBinding = static_cast<uint32_t>(num_uniform_buffer_bindings + num_images + i); // <-- note offset
+            descriptor_write.dstBinding = static_cast<uint32_t>(num_uniform_buffer_bindings + num_images + i + 1); // <-- note offset
             descriptor_write.dstArrayElement = 0;
             descriptor_write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
             descriptor_write.descriptorCount = 1;
@@ -826,7 +866,7 @@ VkFormat Renderer::find_supported_format(const std::vector<VkFormat>& candidates
 
 VkFormat Renderer::find_depth_format() {
     return find_supported_format(
-        {VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT},
+        {VK_FORMAT_D32_SFLOAT},//, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT},
         VK_IMAGE_TILING_OPTIMAL,
         VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT
     );
@@ -862,6 +902,115 @@ void Renderer::update_uniform_group(size_t idx, void* data) {
     for(int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
         update_buffer(m_uniforms[idx].m_base_index + i, data, m_uniforms[idx].m_size);
     }
+}
+
+int Renderer::add_light(glm::mat4 mvp, int type) {
+    Light light{};
+    light.mvp = mvp;
+
+    m_lights.push_back(light);
+
+    return m_lights.size() - 1;
+}
+
+void Renderer::initialize_lights() {
+    m_shadow_map_image = Image::create_shadow_map_image(*this, 1024, 1024, find_depth_format(), 32);
+
+    for (uint32_t i = 0; i < m_lights.size(); ++i) {
+        VkImageViewCreateInfo view_info{};
+        view_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        view_info.image = m_shadow_map_image.m_image;
+        view_info.viewType = VK_IMAGE_VIEW_TYPE_2D; // single layer view
+        view_info.format = find_depth_format();
+        view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+        view_info.subresourceRange.baseMipLevel = 0;
+        view_info.subresourceRange.levelCount = 1;
+        view_info.subresourceRange.baseArrayLayer = i;  // one layer at a time
+        view_info.subresourceRange.layerCount = 1;
+
+        if (m_dispatch.createImageView(&view_info, nullptr, &m_lights[i].image_view) != VK_SUCCESS)
+            throw std::runtime_error("Failed to create per-layer image view!");
+
+        // m_lights[i].image_view = m_shadow_map_image.m_image_view;
+
+    // for(int i = 0; i < m_lights.size(); i++) {
+        std::vector<VkImageView> attachments = {
+            m_lights[i].image_view
+        };
+        
+        VkFramebufferCreateInfo info{};
+        info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+        info.renderPass = m_shadow_pipeline->get_render_pass();
+        info.attachmentCount = static_cast<uint32_t>(attachments.size());
+        info.pAttachments = attachments.data();
+        info.width = 1024;
+        info.height = 1024;
+        info.layers = 1;
+        
+        if(m_dispatch.createFramebuffer(&info, nullptr, &m_lights[i].framebuffer) != VK_SUCCESS)
+            throw std::runtime_error("Failed to create a framebuffer!");        
+    }
+}
+
+void Renderer::render_shadow_maps(VkCommandBuffer command_buffer, std::vector<Engine::Model> &models) {
+    if (m_lights.empty()) return;
+
+    VkFormat depth_format = find_depth_format();
+
+    // Image::transition_image_layout(*this, m_shadow_map_image.m_image, depth_format, 
+    //     VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL , VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, 1, command_buffer);
+
+    struct LightModel {
+        glm::mat4 mvp;
+        glm::mat4 model;
+    };
+
+    VkRenderPassBeginInfo render_pass_info{};
+    render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    render_pass_info.renderPass = m_shadow_render_pass;
+    render_pass_info.framebuffer = VK_NULL_HANDLE;
+    render_pass_info.renderArea.offset = {0, 0};
+    render_pass_info.renderArea.extent = VkExtent2D{1024, 1024};
+
+    std::vector<VkClearValue> clear_colors(1);
+    clear_colors[0].depthStencil = {1.f, 0};
+
+    render_pass_info.clearValueCount = static_cast<uint32_t>(clear_colors.size());
+    render_pass_info.pClearValues = clear_colors.data();
+
+    for (Light& light : m_lights) {
+        render_pass_info.framebuffer = light.framebuffer;
+
+        m_dispatch.cmdBeginRenderPass(command_buffer, &render_pass_info, VK_SUBPASS_CONTENTS_INLINE);
+        m_dispatch.cmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_shadow_pipeline->get_pipeline());        
+        
+        LightModel lm{};
+        lm.mvp = light.mvp;
+
+        for (const Engine::Model &model : models) {
+            // Retreive vertex and index buffers =============================================================
+            VkBuffer vertex_buffers[] = {get_buffer(model.vertex_buffer_idx)};
+            VkDeviceSize offsets[] = {0};
+            VkBuffer index_buffer = get_buffer(model.index_buffer_idx);
+            
+            // Bind vertex and index buffers
+            m_dispatch.cmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers, offsets);
+            m_dispatch.cmdBindIndexBuffer(command_buffer, index_buffer, 0, VK_INDEX_TYPE_UINT32);
+
+            // Set push constants ============================================================================
+            lm.model = model.model_matrix;
+            m_dispatch.cmdPushConstants(command_buffer, m_shadow_pipeline->get_pipeline_layout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(LightModel), &lm);
+            
+            // draw call
+            m_dispatch.cmdDrawIndexed(command_buffer, static_cast<uint32_t>(model.indices.size()), 1, 0, 0, 0);
+        }
+
+        m_dispatch.cmdEndRenderPass(command_buffer);
+    }
+
+    // std::cout << "trans image from VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL to  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL\n";
+    // Image::transition_image_layout(*this, m_shadow_map_image.m_image, depth_format, 
+    //     VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 1, command_buffer);
 }
 
 }

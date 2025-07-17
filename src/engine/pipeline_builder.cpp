@@ -3,7 +3,7 @@
 
 namespace Engine {
 
-PipelineData PipelineBuilder::build(Renderer &device) {
+PipelineData PipelineBuilder::build(Renderer &renderer) {
     // std::cout << "Creating shader stages\n";
     VkPipelineShaderStageCreateInfo shader_stages[] = {
         m_vert_shader.get_shader_stage_create_info(),
@@ -16,14 +16,12 @@ PipelineData PipelineBuilder::build(Renderer &device) {
     VkPipelineVertexInputStateCreateInfo vertex_input_info = get_vertex_input_state_create_info();
     // std::cout << "Creating inp assembly\n";
     VkPipelineInputAssemblyStateCreateInfo input_assembly = get_input_assembly_state_create_info();
-    // VkViewport viewport = get_viewport(swapchain);
-    // VkRect2D scissor = get_scissor(swapchain);
     // std::cout << "Creating viewport state\n";
-    VkPipelineViewportStateCreateInfo viewport_state = get_viewport_state();
+    VkPipelineViewportStateCreateInfo viewport_state = get_viewport_state(VkExtent2D{1024, 1024}); // only for shadow maps anywats
     // std::cout << "Creating rast\n";
     VkPipelineRasterizationStateCreateInfo rasterizer = get_rasterizer_state();
     // std::cout << "Creating ms\n";
-    VkPipelineMultisampleStateCreateInfo multisampling = get_multisampling(device.get_msaa_sample_count());
+    VkPipelineMultisampleStateCreateInfo multisampling = get_multisampling(renderer.get_msaa_sample_count());
     // std::cout << "Creating cba\n";
     VkPipelineColorBlendAttachmentState color_blend_attachment = get_color_blend_attachment();
     // std::cout << "Creating cb\n";
@@ -52,7 +50,7 @@ PipelineData PipelineBuilder::build(Renderer &device) {
 
     VkPipeline pipeline;
     // std::cout << "Creating pipeline\n";
-    if(device.m_dispatch.createGraphicsPipelines(VK_NULL_HANDLE, 1, &create_info, nullptr, &pipeline) != VK_SUCCESS)
+    if(renderer.m_dispatch.createGraphicsPipelines(VK_NULL_HANDLE, 1, &create_info, nullptr, &pipeline) != VK_SUCCESS)
         throw std::runtime_error("Could not create graphics pipeline!");
 
     PipelineData ret{};
@@ -65,11 +63,11 @@ PipelineData PipelineBuilder::build(Renderer &device) {
     return ret;
 }
 
-void PipelineBuilder::create_pipeline_layout(Renderer &device, VkDescriptorSetLayout *descriptor_set_layouts) {
+void PipelineBuilder::create_pipeline_layout(Renderer &device, std::vector<VkDescriptorSetLayout> descriptor_set_layouts) {
     VkPipelineLayoutCreateInfo info{};
     info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    info.setLayoutCount = 1;
-    info.pSetLayouts = descriptor_set_layouts;
+    info.setLayoutCount = static_cast<uint32_t>(descriptor_set_layouts.size());
+    info.pSetLayouts = descriptor_set_layouts.data();
     info.pushConstantRangeCount = static_cast<uint32_t>(m_push_constant_ranges.size());
     info.pPushConstantRanges = m_push_constant_ranges.data();
 
@@ -169,6 +167,63 @@ void PipelineBuilder::create_render_pass(Renderer &renderer, vkb::Swapchain swap
     }
 }
 
+void PipelineBuilder::create_shadow_render_pass(Renderer &renderer) {
+    VkFormat depth_format = renderer.find_depth_format();
+
+    VkAttachmentDescription depth_attachment{};
+    depth_attachment.format = depth_format;
+    depth_attachment.samples = m_enable_msaa ? renderer.get_msaa_sample_count(): VK_SAMPLE_COUNT_1_BIT;
+    depth_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;							// Clear depth at beginning of the render pass
+    depth_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;						// We will read from depth, so it's important to store the depth attachment results
+    depth_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    depth_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depth_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    depth_attachment.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+    VkAttachmentReference depth_attachment_ref{};
+    depth_attachment_ref.attachment = 0;
+    depth_attachment_ref.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+    VkSubpassDescription subpass{};
+    subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    subpass.colorAttachmentCount = 0;            // No color attachments here
+    subpass.pColorAttachments = nullptr;
+    subpass.pDepthStencilAttachment = &depth_attachment_ref;
+
+    std::vector<VkSubpassDependency> dependencies(2);
+
+    // External → Shadow Pass: allow write access to depth
+    dependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
+    dependencies[0].dstSubpass = 0;
+    dependencies[0].srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    dependencies[0].dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+    dependencies[0].srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    dependencies[0].dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+    dependencies[0].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+
+    // Shadow Pass → External: allow shader sampling after depth write
+    dependencies[1].srcSubpass = 0;
+    dependencies[1].dstSubpass = VK_SUBPASS_EXTERNAL;
+    dependencies[1].srcStageMask = VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+    dependencies[1].dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    dependencies[1].srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+    dependencies[1].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    dependencies[1].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+
+    VkRenderPassCreateInfo render_pass_info{};
+    render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+    render_pass_info.attachmentCount = 1;
+    render_pass_info.pAttachments = &depth_attachment;
+    render_pass_info.subpassCount = 1;
+    render_pass_info.pSubpasses = &subpass;
+    render_pass_info.dependencyCount = static_cast<uint32_t>(dependencies.size());
+    render_pass_info.pDependencies = dependencies.data();
+
+    if (renderer.m_dispatch.createRenderPass(&render_pass_info, nullptr, &m_render_pass) != VK_SUCCESS) 
+        throw std::runtime_error("failed to create shadow render pass!");
+} 
+
+
 VkPipelineDepthStencilStateCreateInfo PipelineBuilder::get_depth_stencil_create_info() {
     VkPipelineDepthStencilStateCreateInfo depth_stencil{};
     depth_stencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
@@ -182,10 +237,13 @@ VkPipelineDepthStencilStateCreateInfo PipelineBuilder::get_depth_stencil_create_
 }
 
 VkPipelineDynamicStateCreateInfo PipelineBuilder::get_dynamic_state_create_info() {
-    m_dynamic_states = {
-        VK_DYNAMIC_STATE_VIEWPORT,
-        VK_DYNAMIC_STATE_SCISSOR,
-    };
+    if (m_enable_dynamic_state)
+        m_dynamic_states = {
+            VK_DYNAMIC_STATE_VIEWPORT,
+            VK_DYNAMIC_STATE_SCISSOR,
+        };
+    else
+        m_dynamic_states = {};
 
     VkPipelineDynamicStateCreateInfo info{};
     info.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
@@ -217,33 +275,37 @@ VkPipelineInputAssemblyStateCreateInfo PipelineBuilder::get_input_assembly_state
     return info;
 }
 
-VkViewport PipelineBuilder::get_viewport(const vkb::Swapchain &swapchain) {
+VkViewport PipelineBuilder::get_viewport(float width, float height) {
     VkViewport info{};
     info.x = 0.0f;
     info.y = 0.0f;
-    info.width = (float) swapchain.extent.width;
-    info.height = (float) swapchain.extent.height;
+    info.width = width;
+    info.height = height;
     info.minDepth = 0.0f;
     info.maxDepth = 1.0f;
 
     return info;
 }
 
-VkRect2D PipelineBuilder::get_scissor(const vkb::Swapchain &swapchain) {
+VkRect2D PipelineBuilder::get_scissor(uint32_t width, uint32_t height) {
     VkRect2D scissor{};
     scissor.offset = {0, 0};
-    scissor.extent = swapchain.extent;
+    scissor.extent = VkExtent2D{width, height};
     
     return scissor;
 }
 
-VkPipelineViewportStateCreateInfo PipelineBuilder::get_viewport_state() {
+VkPipelineViewportStateCreateInfo PipelineBuilder::get_viewport_state(VkExtent2D extent) {
+
+    m_viewport = get_viewport((float)extent.width, (float)extent.height);
+    m_scissor = get_scissor(extent.width, extent.height);
+
     VkPipelineViewportStateCreateInfo state{};
     state.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
     state.viewportCount = 1;
     state.scissorCount = 1;
-    state.pViewports = nullptr;  // because it's dynamic
-    state.pScissors = nullptr;
+    state.pViewports = m_enable_dynamic_state ? nullptr: &m_viewport;  // because it's dynamic
+    state.pScissors = m_enable_dynamic_state ? nullptr: &m_scissor;
 
     return state;
 }
@@ -257,7 +319,12 @@ VkPipelineRasterizationStateCreateInfo PipelineBuilder::get_rasterizer_state() {
     rasterizer.lineWidth = 1.f;
     rasterizer.cullMode = m_cull_mode;
     rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
-    rasterizer.depthBiasClamp = VK_FALSE;
+
+    rasterizer.depthBiasEnable = VK_TRUE;
+    // rasterizer.depthBiasConstantFactor = 1.25f;
+    rasterizer.depthBiasConstantFactor = 2.5f;
+	rasterizer.depthBiasSlopeFactor = 1.75f;
+    rasterizer.depthBiasClamp = 0.0f;
 
     return rasterizer;
 }
@@ -266,7 +333,7 @@ VkPipelineMultisampleStateCreateInfo PipelineBuilder::get_multisampling(VkSample
     VkPipelineMultisampleStateCreateInfo multisampling{};
     multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
     multisampling.sampleShadingEnable = VK_FALSE;
-    multisampling.rasterizationSamples = num_samples;
+    multisampling.rasterizationSamples = m_enable_msaa ? num_samples: VK_SAMPLE_COUNT_1_BIT;
 
     return multisampling;
 }
@@ -291,8 +358,8 @@ VkPipelineColorBlendStateCreateInfo PipelineBuilder::get_color_blend_state(VkPip
     VkPipelineColorBlendStateCreateInfo color_blending{};
     color_blending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
     color_blending.logicOpEnable = VK_FALSE;
-    color_blending.attachmentCount = 1;
-    color_blending.pAttachments = &attachment;
+    color_blending.attachmentCount = m_use_color_attachment ? 1: 0;
+    color_blending.pAttachments = m_use_color_attachment ? &attachment: nullptr;
 
     return color_blending;
 }

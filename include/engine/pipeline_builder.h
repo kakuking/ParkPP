@@ -16,7 +16,7 @@ struct PipelineData {
 
 class PipelineBuilder {
 public:
-    void create_pipeline_layout(Renderer &device, VkDescriptorSetLayout *descriptor_set_layout);
+    void create_pipeline_layout(Renderer &device, std::vector<VkDescriptorSetLayout> descriptor_set_layout);
 
     void set_shaders(Renderer &device, const std::string &vert_shader_filename, const std::string &frag_shader_filename);
     void add_push_constants(uint32_t pc_size, uint32_t offset=0, VkShaderStageFlags shader_stage=VK_SHADER_STAGE_VERTEX_BIT);
@@ -36,19 +36,29 @@ public:
     void enable_depth_test() { m_enable_depth_test = true; }
     void disable_depth_test() { m_enable_depth_test = false; }
 
+    void enable_msaa() { m_enable_msaa = true; }
+    void disable_msaa() { m_enable_msaa = false; }
+
+    void enable_color_attachment() { m_use_color_attachment = true; }
+    void disable_color_attachment() { m_use_color_attachment = false; }
+
+    void enable_dynamic_state() { m_enable_dynamic_state = true; }
+    void disable_dynamic_state() { m_enable_dynamic_state = false; }
+
     void set_vertex_binding_and_attrs(VkVertexInputBindingDescription vertex_binding_desc, std::vector<VkVertexInputAttributeDescription> vertex_input_attr_desc) { m_vertex_binding_desc = vertex_binding_desc; m_vertex_input_attr_desc = vertex_input_attr_desc; }
     
     PipelineData build(Renderer &device);
 
     void create_render_pass(Renderer &renderer, vkb::Swapchain swapchain);
+    void create_shadow_render_pass(Renderer &renderer); 
 
 private:
     VkPipelineDynamicStateCreateInfo get_dynamic_state_create_info();
     VkPipelineVertexInputStateCreateInfo get_vertex_input_state_create_info();
     VkPipelineInputAssemblyStateCreateInfo get_input_assembly_state_create_info();
-    VkViewport get_viewport(const vkb::Swapchain &swapchain);
-    VkRect2D get_scissor(const vkb::Swapchain &swapchain);
-    VkPipelineViewportStateCreateInfo get_viewport_state();
+    VkViewport get_viewport(float width, float height);
+    VkRect2D get_scissor(uint32_t width, uint32_t height);
+    VkPipelineViewportStateCreateInfo get_viewport_state(VkExtent2D extent);
     VkPipelineRasterizationStateCreateInfo get_rasterizer_state();
     VkPipelineMultisampleStateCreateInfo get_multisampling(VkSampleCountFlagBits num_samples);
     VkPipelineColorBlendAttachmentState get_color_blend_attachment();
@@ -69,8 +79,14 @@ private:
     VkFormat m_draw_format;
     VkFormat m_depth_format;
     VkCullModeFlags m_cull_mode = VK_CULL_MODE_NONE;
+    VkViewport m_viewport;
+    VkRect2D m_scissor;
+    
     bool m_enable_blending = false;
     bool m_enable_depth_test = false;
+    bool m_enable_msaa = true;
+    bool m_use_color_attachment = true;
+    bool m_enable_dynamic_state = true;
     VkVertexInputBindingDescription m_vertex_binding_desc; std::vector<VkVertexInputAttributeDescription> m_vertex_input_attr_desc;
 };
 

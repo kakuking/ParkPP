@@ -1,6 +1,7 @@
 #pragma once
 
 #define GLM_ENABLE_EXPERIMENTAL
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
 #include <glm/gtx/hash.hpp>
 #include <vulkan/vulkan.h>
@@ -14,7 +15,7 @@
 
 #include <engine/renderer.h>
 
-namespace Game {
+namespace Engine {
 struct Vertex {
     glm::vec3 pos;
     float u;
@@ -75,12 +76,6 @@ struct Vertex {
     }
 };
 
-struct UniformBufferObject {
-    // glm::mat4 model;
-    glm::mat4 view;
-    glm::mat4 proj;
-};
-
 struct Model {
     std::vector<Vertex> vertices;
     std::vector<uint32_t> indices;
@@ -100,8 +95,8 @@ Model load_obj_model_with_material(std::string filename, float base_texture=0.f,
 }
 
 namespace std {
-    template<> struct hash<Game::Vertex> {
-        size_t operator()(Game::Vertex const& vertex) const {
+    template<> struct hash<Engine::Vertex> {
+        size_t operator()(Engine::Vertex const& vertex) const {
             size_t h1 = hash<glm::vec3>()(vertex.pos);
             size_t h2 = hash<glm::vec3>()(vertex.color);
             size_t h3 = hash<float>()(vertex.u);
@@ -110,4 +105,12 @@ namespace std {
             return (((h1 ^ (h2 << 1)) >> 1) ^ (h3 << 1)) ^ (h4 << 1);
         }
     };
+}
+
+namespace Game {
+struct UniformBufferObject {
+    // glm::mat4 model;
+    glm::mat4 view;
+    glm::mat4 proj;
+};
 }

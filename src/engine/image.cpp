@@ -3,10 +3,18 @@
 
 #include <engine/image.h>
 #include <engine/renderer.h>
+#include <iostream>
 
 namespace Engine {
 
 void TextureImage::cleanup(vkb::DispatchTable &dispatch_table) {
+    dispatch_table.destroySampler(m_sampler, nullptr);
+    dispatch_table.destroyImageView(m_image_view, nullptr);
+    dispatch_table.destroyImage(m_image, nullptr);
+    dispatch_table.freeMemory(m_image_memory, nullptr);
+}
+
+void ShadowMapImage::cleanup(vkb::DispatchTable &dispatch_table) {
     dispatch_table.destroySampler(m_sampler, nullptr);
     dispatch_table.destroyImageView(m_image_view, nullptr);
     dispatch_table.destroyImage(m_image, nullptr);
@@ -64,6 +72,35 @@ DepthImage Image::create_depth_image(Renderer &renderer, uint32_t width, uint32_
     ret.m_image = depth_image;
     ret.m_image_memory = depth_image_memory;
     ret.m_image_view = depth_image_view;
+
+    return ret;
+}
+
+ShadowMapImage Image::create_shadow_map_image(Renderer &renderer, uint32_t width, uint32_t height, VkFormat depth_format, uint32_t layer_count) {
+    VkImage depth_image;
+    VkDeviceMemory depth_image_memory;
+    VkImageView depth_image_view;
+
+    create_image(renderer, width, height, depth_format,
+        VK_IMAGE_TILING_OPTIMAL, 
+        VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, 
+        VK_SAMPLE_COUNT_1_BIT, 
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 
+        depth_image, depth_image_memory, layer_count, 0);
+    
+    // depth_image_view = create_image_array_view(renderer, depth_image, depth_format, VK_IMAGE_ASPECT_DEPTH_BIT, layer_count);
+    depth_image_view = create_image_array_view(renderer, depth_image, depth_format, VK_IMAGE_ASPECT_DEPTH_BIT, layer_count);
+    
+    transition_image_layout(renderer, depth_image, depth_format,
+        VK_IMAGE_LAYOUT_UNDEFINED,
+        // VK_IMAGE_LAYOUT_GENERAL, layer_count);
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, layer_count);
+
+    ShadowMapImage ret{};
+    ret.m_image = depth_image;
+    ret.m_image_memory = depth_image_memory;
+    ret.m_image_view = depth_image_view;
+    ret.m_sampler = create_shadow_map_sampler(renderer);
 
     return ret;
 }
@@ -212,7 +249,7 @@ VkImageView Image::create_image_array_view(Renderer &renderer, VkImage image, Vk
     return imageView;
 }
 
-void Image::create_image(Renderer &renderer, uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkSampleCountFlagBits num_samples, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory, uint32_t layer_count) {
+void Image::create_image(Renderer &renderer, uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkSampleCountFlagBits num_samples, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory, uint32_t layer_count, VkImageCreateFlags flags, VkImageLayout layout) {
     VkImageCreateInfo image_info{};
     image_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     image_info.imageType = VK_IMAGE_TYPE_2D;
@@ -225,12 +262,12 @@ void Image::create_image(Renderer &renderer, uint32_t width, uint32_t height, Vk
 
     image_info.format = format;
     image_info.tiling = tiling;
-    image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    image_info.initialLayout = layout;
 
     image_info.usage = usage;
     image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     image_info.samples = num_samples;
-    image_info.flags = 0;
+    image_info.flags = flags;
 
     if (renderer.m_dispatch.createImage(&image_info, nullptr, &image) != VK_SUCCESS)
         throw std::runtime_error("Failed to create image!");
@@ -249,8 +286,12 @@ void Image::create_image(Renderer &renderer, uint32_t width, uint32_t height, Vk
     renderer.m_dispatch.bindImageMemory(image, imageMemory, 0);
 }
 
-void Image::transition_image_layout(Renderer &renderer, VkImage image, VkFormat format, VkImageLayout old_layout, VkImageLayout new_layout, uint32_t layer_count) {
-    VkCommandBuffer command_buffer = renderer.begin_single_time_command();
+void Image::transition_image_layout(Renderer &renderer, VkImage image, VkFormat format, VkImageLayout old_layout, VkImageLayout new_layout, uint32_t layer_count, VkCommandBuffer command_buffer) {
+    bool use_single_time = false;
+    if (command_buffer == VK_NULL_HANDLE) {
+        use_single_time = true;
+        command_buffer = renderer.begin_single_time_command();
+    }
 
     VkImageMemoryBarrier barrier{};
     barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -261,15 +302,20 @@ void Image::transition_image_layout(Renderer &renderer, VkImage image, VkFormat 
 
     barrier.image = image;
 
-    if (new_layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
+    if (format == VK_FORMAT_D16_UNORM ||
+        format == VK_FORMAT_D32_SFLOAT ||
+        format == VK_FORMAT_D24_UNORM_S8_UINT ||
+        format == VK_FORMAT_D32_SFLOAT_S8_UINT) {
+        // It's a depth or depth-stencil image
         barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-
-        if(has_stencil_component(format))
+        
+        if (has_stencil_component(format)) {
             barrier.subresourceRange.aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
+        }
     } else {
+        // It's a color image
         barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
     }
-
     
     barrier.subresourceRange.baseMipLevel = 0;
     barrier.subresourceRange.levelCount = 1;
@@ -298,6 +344,42 @@ void Image::transition_image_layout(Renderer &renderer, VkImage image, VkFormat 
 
         source_stage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
         destination_stage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+    } else if (old_layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL && new_layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
+        barrier.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+        source_stage = VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT; // or EARLY_FRAGMENT_TESTS
+        destination_stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    } else if (old_layout == VK_IMAGE_LAYOUT_UNDEFINED && new_layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
+        barrier.srcAccessMask = 0;
+        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+        source_stage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+        destination_stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    }else if (old_layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL && new_layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
+        barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
+        source_stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+        destination_stage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+    } else if (old_layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL && new_layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
+        barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;  // reading as shader input
+        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;  // still reading as shader input, just different layout
+
+        source_stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+        destination_stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    } else if (old_layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL && new_layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
+        barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
+
+        source_stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+        destination_stage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+    } else if (old_layout == VK_IMAGE_LAYOUT_UNDEFINED && new_layout == VK_IMAGE_LAYOUT_GENERAL) {
+        barrier.srcAccessMask = 0;
+        barrier.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT;
+
+        source_stage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+        destination_stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT; // or whatever stage will use GENERAL layout
     } else {
         throw std::invalid_argument("unsupported layout transition!");
     }
@@ -310,8 +392,9 @@ void Image::transition_image_layout(Renderer &renderer, VkImage image, VkFormat 
         0, nullptr,
         1, &barrier
     );
-
-    renderer.end_single_time_command(command_buffer);
+    
+    if (use_single_time)
+        renderer.end_single_time_command(command_buffer);
 }
 
 VkSampler Image::create_texture_sampler(Renderer &renderer) {
@@ -337,6 +420,35 @@ VkSampler Image::create_texture_sampler(Renderer &renderer) {
 
     if(renderer.m_dispatch.createSampler(&sampler_info, nullptr, &ret) != VK_SUCCESS)
         throw std::runtime_error("Failed to create Image sampler!");
+
+    return ret;
+}
+
+VkSampler Image::create_shadow_map_sampler(Renderer &renderer) {
+    VkSampler ret;
+
+    VkSamplerCreateInfo sampler_info{};
+    sampler_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    sampler_info.magFilter = VK_FILTER_LINEAR;
+    sampler_info.minFilter = VK_FILTER_LINEAR;
+    // sampler_info.magFilter = VK_FILTER_NEAREST;
+    // sampler_info.minFilter = VK_FILTER_NEAREST;
+    sampler_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+    sampler_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+    sampler_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+    sampler_info.anisotropyEnable = VK_FALSE;
+    sampler_info.maxAnisotropy = 1.0f;
+    sampler_info.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+    sampler_info.unnormalizedCoordinates = VK_FALSE;
+    sampler_info.compareEnable = VK_TRUE;
+    sampler_info.compareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
+    sampler_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+    sampler_info.mipLodBias = 0.0f;
+    sampler_info.minLod = 0.0f;
+    sampler_info.maxLod = 0.0f;
+
+    if (renderer.m_dispatch.createSampler(&sampler_info, nullptr, &ret) != VK_SUCCESS)
+        throw std::runtime_error("Failed to create shadow map sampler!");
 
     return ret;
 }

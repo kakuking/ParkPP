@@ -1,27 +1,29 @@
+#include <engine/pipeline.h>
 #include <engine/models.h>
-#include <game/default_pipeline.h>
 
-namespace Game {
+namespace Engine {
 
-void DefaultPipeline::create_pipeline(Engine::Renderer &device, VkFormat image_format) {
+void ShadowPipeline::create_pipeline(Engine::Renderer &device, VkFormat image_format) {
     Engine::PipelineBuilder builder;
-    std::vector<VkDescriptorSetLayout> layout = {device.get_descriptor_set_layout()};
+    std::vector<VkDescriptorSetLayout> layout = {};
 
-    struct PC {
-        glm::mat4 light;
+    struct LightModel {
+        glm::mat4 mvp;
         glm::mat4 model;
     };
 
-    builder.add_push_constants(sizeof(PC));
+    builder.add_push_constants(sizeof(LightModel));
+    builder.disable_msaa();
+    builder.disable_color_attachment();
+    builder.disable_dynamic_state();
 
     builder.create_pipeline_layout(device, layout);
     
-    builder.create_render_pass(device, device.get_swapchain());
+    builder.create_shadow_render_pass(device);
     
-    builder.set_shaders(device, "shaders/shader.vert.spv", "shaders/shader.frag.spv");
+    builder.set_shaders(device, "shaders/shadow_shader.vert.spv", "shaders/shadow_shader.frag.spv");
     builder.set_input_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
     builder.set_polygon_mode(VK_POLYGON_MODE_FILL);
-    builder.set_color_attachment_format(image_format);
     builder.enable_culling(VK_CULL_MODE_BACK_BIT);
     builder.disable_blending();
 
@@ -33,7 +35,7 @@ void DefaultPipeline::create_pipeline(Engine::Renderer &device, VkFormat image_f
     m_data = builder.build(device);
 }
 
-void DefaultPipeline::destroy_pipeline(vkb::DispatchTable &dispatch_table) {
+void ShadowPipeline::destroy_pipeline(vkb::DispatchTable &dispatch_table) {
     m_data.frag_shader.destroy_shader(dispatch_table);
     m_data.vert_shader.destroy_shader(dispatch_table);
     dispatch_table.destroyRenderPass(m_data.render_pass, nullptr);

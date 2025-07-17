@@ -1,7 +1,7 @@
-#include <game/models.h>
+#include <engine/models.h>
 #include <fmt/format.h>
 
-namespace Game {
+namespace Engine {
 
 void Model::create_buffers(Engine::Renderer &renderer) {
     vertex_buffer_size = sizeof(vertices[0]) * vertices.size();

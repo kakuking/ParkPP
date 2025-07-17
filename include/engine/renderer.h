@@ -4,6 +4,7 @@
 #include <stdexcept>
 
 #define GLM_FORCE_RADIANS
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -14,19 +15,31 @@
 #include <vk_mem_alloc.h>
 
 #include <engine/window.h>
-
 #include <engine/image.h>
+#include <engine/pipeline.h>
 
 const int MAX_FRAMES_IN_FLIGHT = 2;
 
 namespace Engine {
 class Pipeline;
 class Texture;
+struct Model;
 
 struct UniformBufferGroup {
     size_t m_base_index;
     size_t m_size;
     uint32_t m_binding;
+};
+
+struct Light {
+    glm::mat4 mvp;
+    VkImageView image_view;
+    VkFramebuffer framebuffer;
+
+    void cleanup(vkb::DispatchTable &dispatch_table) {
+        dispatch_table.destroyImageView(image_view, nullptr);
+        dispatch_table.destroyFramebuffer(framebuffer, nullptr);
+    }
 };
 
 class Renderer {
@@ -45,7 +58,7 @@ public:
     void begin_render_pass(VkCommandBuffer &command_buffer, uint32_t image_index);
     void bind_pipeline_and_descriptors(VkCommandBuffer &command_buffer, int pipeline_idx, int current_frame);
     void set_default_viewport_and_scissor(VkCommandBuffer &command_buffer);
-    void end_render_pass(VkCommandBuffer command_buffer);
+    void end_render_pass_and_command_buffer(VkCommandBuffer command_buffer);
     
     // Draw to the swapchain and perform sync
     void end_frame();
@@ -72,8 +85,13 @@ public:
     void add_texture(std::string filename, uint32_t binding);
     void add_texture_array(std::vector<std::string> filename, uint32_t width, uint32_t height, uint32_t layer_count, uint32_t binding);
 
+    int add_light(glm::mat4 mvp, int type=0);
+    void render_shadow_maps(VkCommandBuffer command_buffer, std::vector<Engine::Model> &models);
+
     template<typename T>
     size_t create_uniform_group(uint32_t binding, VkShaderStageFlags stage_flags) {
+        if(binding == 0)
+            throw std::runtime_error("Binding 0 is reserved for teh shadowmap in the frag shader");
         size_t ub_size = sizeof(T);
         size_t first_uniform_buffer_idx = create_uniform_buffer(ub_size);
 
@@ -142,6 +160,9 @@ private:
     bool has_stencil_component(VkFormat format) { return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT; }
     VkSampleCountFlagBits get_max_usable_sample_count();
     
+    void initialize_lights();
+
+
     // Vulkan context
     vkb::Instance m_instance;
     vkb::InstanceDispatchTable m_instance_dispatch;
@@ -199,5 +220,11 @@ private:
     // for msaa
     VkSampleCountFlagBits m_msaa_samples = VK_SAMPLE_COUNT_1_BIT;
     ColorImage m_color_image;
+
+    // for lights
+    Pipeline* m_shadow_pipeline;
+    VkRenderPass m_shadow_render_pass = VK_NULL_HANDLE;
+    ShadowMapImage m_shadow_map_image;
+    std::vector<Light> m_lights;
 };
 }

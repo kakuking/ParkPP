@@ -19,16 +19,16 @@ Most of the Vulkan Functionalities are quite basic, I picked them up from the [V
 7. Texture Arrays 🖼🖼
 8. Abstracted UBOs and render pass stuff ⚙⚙
 9. Multiple textures in one model 🖼🖼🖼
+10. ~~Point~~ Directional Lights ☀ & Shadow mapping 🔦
 
 ## Things to implement
 
-1. Lighting 💡
-2. Shadow mapping 🔦
-3. Transparency 🔎
-4. More complex materials 🎨
-5. Maybe moving from GLFW to SDL or SFML (for audio capabilities) 👨‍🔬 
-6. Billboards and particles 🎆
-7. Physics and collisions 🎯
+1. Transparency 🔎
+2. Billboards and particles 🎆
+3. More complex materials 🎨
+4. Area Lights 🏮
+5. Physics and collisions 🎯
+6. Maybe moving from GLFW to SDL or SFML (for audio capabilities) 👨‍🔬 
 
 ## To build - 
 ### Windows (with MSBuild) -

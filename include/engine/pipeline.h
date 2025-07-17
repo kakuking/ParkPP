@@ -20,4 +20,9 @@ protected:
     PipelineData m_data;
 };
 
+class ShadowPipeline: public Pipeline {
+    void create_pipeline(Engine::Renderer &device, VkFormat image_format) override;
+    void destroy_pipeline(vkb::DispatchTable &dispatch_table) override;
+};
+
 }

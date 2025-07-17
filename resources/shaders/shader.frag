@@ -20,19 +20,18 @@ void main() {
     // vec2 projCoordsUV = projCoords.xy * 0.5 + 0.5;
 
     // Early discard for out-of-bounds coords
-    if (projCoords.x < 0.0 || projCoords.x > 1.0 ||
-        projCoords.y < 0.0 || projCoords.y > 1.0 ||
-        projCoords.z < 0.0 || projCoords.z > 1.0) {
-        outColor = baseColor; // * 0.3; // consider it to be in teh shadows
-        return;
+    float shadowFactor = 1.0;
+    if (projCoords.x >= 0.0 && projCoords.x <= 1.0 &&
+        projCoords.y >= 0.0 && projCoords.y <= 1.0 &&
+        projCoords.z >= 0.0 && projCoords.z <= 1.0) {
+        
+        float shadowSample = texture(shadowMapSampler, vec4(projCoords.xy, 0.0, z_depth));
+        shadowFactor = shadowSample > 0.0 ? 1.0 : 0.3;
     }
-
-    float shadowSample = texture(shadowMapSampler, vec4(projCoords.xy, 0.0, z_depth));
-    float shadowFactor = shadowSample > 0.0 ? 1.0 : 0.3;
 
     // Lighting based on normal
     vec3 normal = normalize(fragNormal);
-    vec3 lightDir = normalize(vec3(0.0, -0.5, -5.0));  // or hardcode like vec3(0.5, -1.0, 0.3)
+    vec3 lightDir = normalize(vec3(0.0, -5.0, -5.0));  // or hardcode like vec3(0.5, -1.0, 0.3)
 
     float NdotL = max(dot(normal, -lightDir), 0.0);  // Directional light
     float diffuse = mix(0.3, 1.0, NdotL);            // Optional ambient

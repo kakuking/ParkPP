@@ -23,13 +23,13 @@ int main() {
     
     // Initializing Models  =====================================================================================
     // Engine::Model room_model = Engine::load_obj_model("./models/F1_2026.obj", 0.f);
-    Engine::Model room_model = Engine::load_obj_model_with_material("./models/F1_2026.obj", 0.f, "./models");
-    room_model.model_matrix = glm::rotate(glm::mat4(1.f), glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-    room_model.create_buffers(renderer);
+    Engine::Model car_model = Engine::load_obj_model_with_material("./models/F1_2026.obj", 0.f, "./models");
+    Engine::Model plane_model = Engine::load_obj_model_with_material("./models/plane.obj", 4.f, "./models");
+    car_model.create_buffers(renderer);
+    plane_model.create_buffers(renderer);
     
-    std::vector<Engine::Model> models = {room_model};
-    std::vector<Engine::Model*> model_ptrs = {&room_model};
-    std::vector<std::string> texture_filenames = {"textures/Livery.jpg", "textures/Checkerboard.png", "textures/WheelCovers.jpg", "textures/TyreSoft.png"};
+    std::vector<Engine::Model> models = {car_model, plane_model};
+    std::vector<std::string> texture_filenames = {"textures/Livery.jpg", "textures/Checkerboard.png", "textures/WheelCovers.jpg", "textures/TyreSoft.png", "textures/Checkerboard.png"};
     
     // Initializing UBO & Textures  =============================================================================
     float camera_d = 10.f;
@@ -38,7 +38,7 @@ int main() {
     ubo.proj = glm::perspective(glm::radians(45.f), width / height, 0.1f, 100.f);
     ubo.proj[1][1] *= -1;
 
-    glm::vec3 light_pos = glm::vec3(0.0f, 0.5f, 5.0f); // light above and at an angle
+    glm::vec3 light_pos = glm::vec3(0.0f, 5.0f, 5.0f); // light above and at an angle
     glm::vec3 light_target = glm::vec3(0.0f, 0.0f, 0.0f);
     glm::vec3 light_up = glm::vec3(0.0f, 1.0f, 0.0f);
     glm::mat4 light_view = glm::lookAt(light_pos, light_target, light_up);
@@ -46,7 +46,7 @@ int main() {
     
     float ortho_half_size = 6.0f; // gives you a 10x10 square area
     float near_plane = 1.0f;
-    float far_plane = 7.0f;
+    float far_plane = 10.0f;
     glm::mat4 light_proj = glm::ortho(
         -ortho_half_size, ortho_half_size,  // left, right
         -ortho_half_size, ortho_half_size,  // bottom, top
@@ -64,7 +64,9 @@ int main() {
     renderer.update_uniform_group(ub_idx, &ubo);
     
     // renderer.add_texture("textures/viking_room.jpg", 1);
-    renderer.add_texture_array(texture_filenames, 1024, 1024, 4, 2);
+    uint32_t num_textures = static_cast<uint32_t>(texture_filenames.size());
+    uint32_t layer_count = num_textures < 4 ? 4: num_textures;
+    renderer.add_texture_array(texture_filenames, 1024, 1024, layer_count, 2);
     
     // Initializing Program =====================================================================================
     std::vector<Engine::Pipeline*> pipelines = {&pipeline};

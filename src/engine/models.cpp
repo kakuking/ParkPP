@@ -137,7 +137,7 @@ Model load_obj_model_with_material(std::string filename, float base_texture, std
                 vertex.normal = {0.f, 0.f, 0.f};
             }
 
-            vertex.material_idx = base_texture + static_cast<float>(mat_id);
+            vertex.material_idx = mat_id >= 0 ? base_texture + static_cast<float>(mat_id): base_texture;
 
             if(unique_vertices.count(vertex) == 0) {
                 unique_vertices[vertex] = static_cast<uint32_t>(model_info.vertices.size());
@@ -148,6 +148,8 @@ Model load_obj_model_with_material(std::string filename, float base_texture, std
         }
     }
 
+    // blender uses a different coordinate system, to follow that we need to apply this
+    model_info.model_matrix = glm::rotate(glm::mat4(1.f), glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
     std::cout << "Loaded model --> ";
     fmt::println("Filename: {}, Num Vertices: {}, num indices: {}", filename, model_info.vertices.size(), model_info.indices.size());
 

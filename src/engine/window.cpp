@@ -35,4 +35,30 @@ void Window::cleanup() {
     glfwTerminate();
 }
 
+std::vector<const char*> Window::get_required_instance_extensions() const {
+    uint32_t count = 0;
+    const char** exts = glfwGetRequiredInstanceExtensions(&count);
+    return std::vector<const char*>(exts, exts + count);
+}
+
+void Window::poll_events() {
+    glfwPollEvents(); 
+}
+
+void Window::wait_events() {
+    glfwWaitEvents(); 
+}
+
+VkResult Window::create_window_surface(VkInstance instance, VkSurfaceKHR &surface) {
+    return glfwCreateWindowSurface(instance, m_window, nullptr, &surface); 
+}
+
+void Window::get_framebuffer_size(int &width, int &height) {
+    glfwGetFramebufferSize(m_window, &width, &height); 
+}
+
+bool Window::window_should_close() {
+    return glfwWindowShouldClose(m_window); 
+}
+
 }

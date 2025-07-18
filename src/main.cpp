@@ -56,7 +56,7 @@ int main() {
     light_proj[1][1] *= -1;
     glm::mat4 light_pv = light_proj * light_view;
 
-    renderer.add_light(light_pv);
+    renderer.add_light(light_pv, 0);
 
     light_pv;
     

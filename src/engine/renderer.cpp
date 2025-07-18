@@ -85,7 +85,7 @@ bool Renderer::begin_frame(int &current_frame, uint32_t &image_index, VkCommandB
     if (window_should_close())
         return false;
     
-    glfwPollEvents();
+    m_window.poll_events();
     
     // std::cout << "Waiting for fences\n";
     m_dispatch.waitForFences(1, &m_in_flight_fences[m_current_frame], VK_TRUE, UINT64_MAX);
@@ -397,13 +397,8 @@ void Renderer::destroy_pipeline(int pipeline_idx) {
 void Renderer::create_instance() {
     // Get extensions
     // std::cout << "Getting extns\n";
-    uint32_t glfw_extn_count = 0;
-    const char** glfw_extns;
-    std::vector<const char *> extensions;
-    glfw_extns = glfwGetRequiredInstanceExtensions(&glfw_extn_count);
 
-    for(uint32_t i = 0; i < glfw_extn_count; i++)
-        extensions.push_back(glfw_extns[i]);
+    std::vector<const char *> extensions = m_window.get_required_instance_extensions();
     
     // extensions.push_back(VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME);
 
@@ -438,7 +433,7 @@ void Renderer::create_instance() {
 }
 
 void Renderer::create_surface() {
-    VkResult res = glfwCreateWindowSurface(m_instance, m_window.get_window(), nullptr, &m_surface);
+    VkResult res = m_window.create_window_surface(m_instance, m_surface);
     if(res != VK_SUCCESS)
         throw std::runtime_error("Failed to create a window surface!");
 }
@@ -600,10 +595,10 @@ void Renderer::copy_buffer_to_image(size_t buffer_idx, VkImage &image, uint32_t 
 
 void Renderer::recreate_swap_chain() {
     int width = 0, height = 0;
-    glfwGetFramebufferSize(m_window.get_window(), &width, &height);
+    m_window.get_framebuffer_size(width, height);
     while(width == 0 || height == 0) {
-        glfwGetFramebufferSize(m_window.get_window(), &width, &height);
-        glfwWaitEvents();
+        m_window.get_framebuffer_size(width, height);
+        m_window.wait_events();
     }
     
     m_dispatch.deviceWaitIdle();
@@ -910,7 +905,7 @@ int Renderer::add_light(glm::mat4 mvp, int type) {
 
     m_lights.push_back(light);
 
-    return m_lights.size() - 1;
+    return static_cast<int>(m_lights.size()) - 1;
 }
 
 void Renderer::initialize_lights() {
@@ -955,7 +950,7 @@ void Renderer::initialize_lights() {
 void Renderer::render_shadow_maps(VkCommandBuffer command_buffer, std::vector<Engine::Model> &models) {
     if (m_lights.empty()) return;
 
-    VkFormat depth_format = find_depth_format();
+    // VkFormat depth_format = find_depth_format();
 
     // Image::transition_image_layout(*this, m_shadow_map_image.m_image, depth_format, 
     //     VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL , VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, 1, command_buffer);

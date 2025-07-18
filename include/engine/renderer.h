@@ -8,7 +8,6 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
-#include <GLFW/glfw3.h>
 
 #define VMA_STATIC_VULKAN_FUNCTIONS 0
 #define VMA_DYNAMIC_VULKAN_FUNCTIONS 1
@@ -85,7 +84,7 @@ public:
     void add_texture(std::string filename, uint32_t binding);
     void add_texture_array(std::vector<std::string> filename, uint32_t width, uint32_t height, uint32_t layer_count, uint32_t binding);
 
-    int add_light(glm::mat4 mvp, int type=0);
+    int add_light(glm::mat4 mvp, int type);
     void render_shadow_maps(VkCommandBuffer command_buffer, std::vector<Engine::Model> &models);
 
     template<typename T>

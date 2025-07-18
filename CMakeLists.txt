@@ -25,7 +25,7 @@ target_include_directories(PoggerPark PRIVATE
   ${joltphysics_SOURCE_DIR}/Jolt
   ${Vulkan_INCLUDE_DIRS}
   ${vk_bootstrap_SOURCE_DIR}/src
-  ${glfw_SOURCE_DIR}/include
+  ${SDL3_SOURCE_DIR}/include
   ${volk_SOURCE_DIR}/volk
 )
 
@@ -34,7 +34,7 @@ target_link_libraries(PoggerPark PRIVATE
   vk-bootstrap::vk-bootstrap
   fmt::fmt
   Vulkan::Vulkan
-  glfw
+  SDL3::SDL3
   volk
 )
 
@@ -44,7 +44,7 @@ target_sources(PoggerPark PRIVATE
   ${imgui_SOURCE_DIR}/imgui_draw.cpp
   ${imgui_SOURCE_DIR}/imgui_widgets.cpp
   ${imgui_SOURCE_DIR}/imgui_tables.cpp
-  ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
+  ${imgui_SOURCE_DIR}/backends/imgui_impl_sdl3.cpp
   ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
 )
 

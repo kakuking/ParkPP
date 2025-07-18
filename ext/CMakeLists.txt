@@ -10,15 +10,13 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(vma)
 
-# GLFW
-set(GLFW_BUILD_DOCS OFF CACHE BOOL "GLFW docs" FORCE)
+# SDL3
 FetchContent_Declare(
-  glfw
-  GIT_REPOSITORY https://github.com/glfw/glfw.git
-  GIT_TAG        3.3.8 # or any stable release
+  SDL3
+  GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
+  GIT_TAG release-3.2.8
 )
-
-FetchContent_MakeAvailable(glfw)
+FetchContent_MakeAvailable(SDL3)
 
 # GLM
 FetchContent_Declare(
@@ -95,4 +93,4 @@ set(joltphysics_SOURCE_DIR ${joltphysics_SOURCE_DIR} CACHE INTERNAL "joltphysics
 set(Vulkan_INCLUDE_DIRS ${Vulkan_INCLUDE_DIRS} CACHE INTERNAL "Vulkan_INCLUDE_DIRS")
 set(vk_bootstrap_SOURCE_DIR ${vk_bootstrap_SOURCE_DIR} CACHE INTERNAL "vk_bootstrap_SOURCE_DIR")
 set(volk_SOURCE_DIR ${volk_SOURCE_DIR} CACHE INTERNAL "volk_SOURCE_DIR")
-set(glfw_SOURCE_DIR ${glfw_SOURCE_DIR} CACHE INTERNAL "glfw_SOURCE_DIR")
+set(SDL3_SOURCE_DIR ${SDL3_SOURCE_DIR} CACHE INTERNAL "SDL3_SOURCE_DIR")

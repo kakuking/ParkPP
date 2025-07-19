@@ -66,11 +66,10 @@ void Renderer::initialize(
     create_descriptor_sets();
 
     // std::cout << "Creating pipelines!\n";
-    for(Pipeline* pipeline: m_pipelines)
-        pipeline->create_pipeline(*this, m_swapchain.image_format);
-
-    // std::cout << "getting render pass!\n";
-    m_render_pass = m_pipelines[0]->get_render_pass();
+    for(Pipeline* pipeline: m_pipelines) {
+        pipeline->create_pipeline(*this, m_swapchain.image_format, m_render_pass);
+        m_render_pass = m_pipelines[0]->get_render_pass();
+    }
 
     // std::cout << "Creating fbs!\n";
     create_framebuffers();

@@ -12,6 +12,7 @@ struct PipelineData {
     VkPipelineLayout pipeline_layout;
     Shader vert_shader, frag_shader;
     VkRenderPass render_pass = VK_NULL_HANDLE;
+    bool m_unique_render_pass = true;
 };
 
 class PipelineBuilder {
@@ -36,6 +37,9 @@ public:
     void enable_depth_test() { m_enable_depth_test = true; }
     void disable_depth_test() { m_enable_depth_test = false; }
 
+    void enable_depth_write() { m_enable_depth_write = true; }
+    void disable_depth_write() { m_enable_depth_write = false; }
+
     void enable_msaa() { m_enable_msaa = true; }
     void disable_msaa() { m_enable_msaa = false; }
 
@@ -49,7 +53,8 @@ public:
     
     PipelineData build(Renderer &device);
 
-    void create_render_pass(Renderer &renderer, vkb::Swapchain swapchain);
+    void create_render_pass(Renderer &renderer, vkb::Swapchain swapchain, VkRenderPass old_render_pass);
+    void set_render_pass(VkRenderPass render_pass) { m_render_pass = render_pass; }
     void create_shadow_render_pass(Renderer &renderer); 
 
 private:
@@ -81,9 +86,12 @@ private:
     VkCullModeFlags m_cull_mode = VK_CULL_MODE_NONE;
     VkViewport m_viewport;
     VkRect2D m_scissor;
+
+    bool m_unique_render_pass = true;
     
     bool m_enable_blending = false;
     bool m_enable_depth_test = false;
+    bool m_enable_depth_write = false;
     bool m_enable_msaa = true;
     bool m_use_color_attachment = true;
     bool m_enable_dynamic_state = true;

@@ -3,7 +3,7 @@
 
 namespace Engine {
 
-void ShadowPipeline::create_pipeline(Engine::Renderer &device, VkFormat image_format) {
+void ShadowPipeline::create_pipeline(Engine::Renderer &device, VkFormat image_format, VkRenderPass old_render_pass) {
     Engine::PipelineBuilder builder;
     std::vector<VkDescriptorSetLayout> layout = {};
 
@@ -26,6 +26,8 @@ void ShadowPipeline::create_pipeline(Engine::Renderer &device, VkFormat image_fo
     builder.set_polygon_mode(VK_POLYGON_MODE_FILL);
     builder.enable_culling(VK_CULL_MODE_BACK_BIT);
     builder.disable_blending();
+    builder.enable_depth_test();
+    builder.enable_depth_write();
 
     auto bind_desc = Engine::Vertex::get_binding_description();
     auto attr_desc = Engine::Vertex::get_attribute_description();
@@ -33,13 +35,5 @@ void ShadowPipeline::create_pipeline(Engine::Renderer &device, VkFormat image_fo
     builder.set_vertex_binding_and_attrs(bind_desc, attr_desc);
 
     m_data = builder.build(device);
-}
-
-void ShadowPipeline::destroy_pipeline(vkb::DispatchTable &dispatch_table) {
-    m_data.frag_shader.destroy_shader(dispatch_table);
-    m_data.vert_shader.destroy_shader(dispatch_table);
-    dispatch_table.destroyRenderPass(m_data.render_pass, nullptr);
-    dispatch_table.destroyPipelineLayout(m_data.pipeline_layout, nullptr);
-    dispatch_table.destroyPipeline(m_data.pipeline, nullptr);
 }
 }

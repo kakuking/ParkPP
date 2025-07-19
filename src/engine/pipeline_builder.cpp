@@ -59,6 +59,7 @@ PipelineData PipelineBuilder::build(Renderer &renderer) {
     ret.pipeline = pipeline;
     ret.pipeline_layout = m_pipeline_layout;
     ret.render_pass = m_render_pass;
+    ret.m_unique_render_pass = m_unique_render_pass;
     
     return ret;
 }
@@ -71,8 +72,7 @@ void PipelineBuilder::create_pipeline_layout(Renderer &device, std::vector<VkDes
     info.pushConstantRangeCount = static_cast<uint32_t>(m_push_constant_ranges.size());
     info.pPushConstantRanges = m_push_constant_ranges.data();
 
-    if(device.m_dispatch
-        .createPipelineLayout(&info, nullptr, &m_pipeline_layout) != VK_SUCCESS)
+    if(device.m_dispatch.createPipelineLayout(&info, nullptr, &m_pipeline_layout) != VK_SUCCESS)
         throw std::runtime_error("Could not create pipeline layout");    
 }
 
@@ -93,7 +93,13 @@ void PipelineBuilder::add_push_constants(uint32_t pc_size, uint32_t offset, VkSh
 }
 
 
-void PipelineBuilder::create_render_pass(Renderer &renderer, vkb::Swapchain swapchain) {
+void PipelineBuilder::create_render_pass(Renderer &renderer, vkb::Swapchain swapchain, VkRenderPass old_render_pass) {
+    if (old_render_pass != VK_NULL_HANDLE) {
+        m_render_pass = old_render_pass;
+        m_unique_render_pass = false;
+        return;
+    }
+
     VkAttachmentDescription colorAttachment{};
     colorAttachment.format = swapchain.image_format;
     colorAttachment.samples = renderer.get_msaa_sample_count();
@@ -227,8 +233,8 @@ void PipelineBuilder::create_shadow_render_pass(Renderer &renderer) {
 VkPipelineDepthStencilStateCreateInfo PipelineBuilder::get_depth_stencil_create_info() {
     VkPipelineDepthStencilStateCreateInfo depth_stencil{};
     depth_stencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-    depth_stencil.depthTestEnable = VK_TRUE;
-    depth_stencil.depthWriteEnable = VK_TRUE;
+    depth_stencil.depthTestEnable = m_enable_depth_test ? VK_TRUE : VK_FALSE;
+    depth_stencil.depthWriteEnable = m_enable_depth_write ? VK_TRUE : VK_FALSE;
     depth_stencil.depthCompareOp = VK_COMPARE_OP_LESS;
     depth_stencil.depthBoundsTestEnable = VK_FALSE;
     depth_stencil.stencilTestEnable = VK_FALSE;

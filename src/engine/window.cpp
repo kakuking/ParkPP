@@ -12,8 +12,8 @@ void Window::init_window() {
         throw std::runtime_error("Failed to initialize SDL!");
 
     if (SDL_Vulkan_LoadLibrary(nullptr) < 0) {
-        throw std::runtime_error("Failed to load vulkan loader");
         SDL_Quit();
+        throw std::runtime_error("Failed to load vulkan loader");
     }
 
     m_window = SDL_CreateWindow("Pogger Park",
@@ -21,15 +21,12 @@ void Window::init_window() {
                                 SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
 
     if (!m_window) {
-        throw std::runtime_error("Failed to create window!");
         SDL_Quit();
+        throw std::runtime_error("Failed to create window!");
     }
-
-    std::cout << "Created window\n";
 }
 
 VkResult Window::create_window_surface(VkInstance instance, VkSurfaceKHR &surface) {
-    std::cout << "Creating surface\n";
     if (!SDL_Vulkan_CreateSurface(m_window, instance, nullptr, &surface)) {
         std::cerr << "Failed to create Vulkan surface: " << SDL_GetError() << std::endl;
         return VK_ERROR_SURFACE_LOST_KHR; // fallback error code

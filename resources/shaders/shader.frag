@@ -62,5 +62,5 @@ void main() {
     float NdotL = max(dot(normal, -lightDir), 0.0);  // Directional light
     float diffuse = mix(0.3, 1.0, NdotL);            // Optional ambient
 
-    outColor = vec4(baseColor.rgb * diffuse * shadowFactor, 1.0);
+    outColor = vec4(baseColor.rgb * diffuse * shadowFactor, baseColor.a);
 }

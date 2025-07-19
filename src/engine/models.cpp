@@ -149,9 +149,10 @@ Model load_obj_model_with_material(std::string filename, float base_texture, std
     }
 
     // blender uses a different coordinate system, to follow that we need to apply this
+    size_t num_faces = model_info.indices.size() / 3;
     model_info.model_matrix = glm::rotate(glm::mat4(1.f), glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
     std::cout << "Loaded model --> ";
-    fmt::println("Filename: {}, Num Vertices: {}, num indices: {}", filename, model_info.vertices.size(), model_info.indices.size());
+    fmt::println("Filename: {}, Num Vertices: {}, Num Indices: {}, Num Faces: {}", filename, model_info.vertices.size(), model_info.indices.size(), num_faces);
 
     return model_info;
 }

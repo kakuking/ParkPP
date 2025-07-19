@@ -6,16 +6,23 @@
 #include <engine/models.h>
 
 #include <game/default_pipeline.h>
+#include <game/default_transparent_pipeline.h>
 
 #include <fmt/format.h>
 
 #include <iostream>
 #include <chrono>
 
-int main() {    
+struct PC {
+    glm::mat4 light;
+    glm::mat4 model;
+};
+
+int main() {
     // Initializing Vulkan  =====================================================================================
     Engine::Renderer renderer;
     Game::DefaultPipeline pipeline;
+    Game::DefaultTransparentPipeline transparent_pipeline;
     renderer.initialize_vulkan();
     
     float width = (float) renderer.get_swapchain_extent().width;
@@ -25,11 +32,16 @@ int main() {
     // Engine::Model room_model = Engine::load_obj_model("./models/F1_2026.obj", 0.f);
     Engine::Model car_model = Engine::load_obj_model_with_material("./models/F1_2026.obj", 0.f, "./models");
     Engine::Model plane_model = Engine::load_obj_model_with_material("./models/plane.obj", 4.f, "./models");
+    Engine::Model upper_plane_model = Engine::load_obj_model_with_material("./models/plane.obj", 5.f, "./models");
+    upper_plane_model.model_matrix = glm::translate(glm::mat4(1.f), glm::vec3(0.0f, 0.0f, 4.0f)) * glm::scale(glm::mat4(1.f), glm::vec3(0.5f, 0.5f, 1.0f)) * upper_plane_model.model_matrix;
+
     car_model.create_buffers(renderer);
     plane_model.create_buffers(renderer);
+    upper_plane_model.create_buffers(renderer);
     
     std::vector<Engine::Model> models = {car_model, plane_model};
-    std::vector<std::string> texture_filenames = {"textures/Livery.jpg", "textures/Checkerboard.png", "textures/WheelCovers.jpg", "textures/TyreSoft.png", "textures/Checkerboard.png"};
+    std::vector<Engine::Model> transparent_models = {upper_plane_model};
+    std::vector<std::string> texture_filenames = {"textures/Livery.jpg", "textures/Checkerboard.png", "textures/WheelCovers.jpg", "textures/TyreSoft.png", "textures/Checkerboard.png", "textures/red_board.png"};
     
     // Initializing UBO & Textures  =============================================================================
     float camera_d = 10.f;
@@ -43,14 +55,13 @@ int main() {
     glm::vec3 light_up = glm::vec3(0.0f, 1.0f, 0.0f);
     glm::mat4 light_view = glm::lookAt(light_pos, light_target, light_up);
 
-    
     float ortho_half_size = 6.0f; // gives you a 10x10 square area
     float near_plane = 1.0f;
     float far_plane = 10.0f;
     glm::mat4 light_proj = glm::ortho(
-        -ortho_half_size, ortho_half_size,  // left, right
-        -ortho_half_size, ortho_half_size,  // bottom, top
-        near_plane, far_plane               // near, far
+        -ortho_half_size, ortho_half_size,
+        -ortho_half_size, ortho_half_size,
+        near_plane, far_plane
     );
 
     light_proj[1][1] *= -1;
@@ -69,7 +80,7 @@ int main() {
     renderer.add_texture_array(texture_filenames, 1024, 1024, layer_count, 2);
     
     // Initializing Program =====================================================================================
-    std::vector<Engine::Pipeline*> pipelines = {&pipeline};
+    std::vector<Engine::Pipeline*> pipelines = {&pipeline, &transparent_pipeline};
     renderer.initialize(pipelines);
     
     // Starting Game Loop   =====================================================================================
@@ -87,13 +98,12 @@ int main() {
         previous_frame_time = current_time;
         total_time += delta_time;
         
-        if (false) {
+        if (true) {
             double fps = delta_time > 0.0 ? 1.0 / delta_time: 0.0;
             fmt::println("{}", fps);
         }
 
         renderer.render_shadow_maps(command_buffer, models);
-        // std::cout << "Begining next render pass\n";
 
         renderer.begin_render_pass(command_buffer, image_index);
         renderer.bind_pipeline_and_descriptors(command_buffer, 0, current_frame);
@@ -103,11 +113,10 @@ int main() {
         ubo.view = glm::lookAt(glm::vec3(camera_d * cosf(total_time), camera_d * sinf(total_time),  camera_d), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 0.f, 1.f));
         renderer.update_uniform_group(ub_idx, &ubo);
 
+        PC pc;
+        pc.light = light_pv;
+
         for(int mod = 0; mod < models.size(); mod++) {
-            struct PC {
-                glm::mat4 light;
-                glm::mat4 model;
-            } pc;
             const Engine::Model &model = models[mod];
 
             // Retreive vertex and index buffers =============================================================
@@ -115,16 +124,39 @@ int main() {
             VkDeviceSize offsets[] = {0};
             VkBuffer index_buffer = renderer.get_buffer(model.index_buffer_idx);
             
-            // Bind vertex and index buffers
+            // Bind vertex and index buffers =================================================================
             renderer.m_dispatch.cmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers, offsets);
             renderer.m_dispatch.cmdBindIndexBuffer(command_buffer, index_buffer, 0, VK_INDEX_TYPE_UINT32);
 
             // Set push constants ============================================================================
-            pc.light = light_pv;
             pc.model = model.model_matrix;
-            renderer.m_dispatch.cmdPushConstants(command_buffer, pipeline.get_pipeline_layout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pc), &pc);
+            renderer.m_dispatch.cmdPushConstants(command_buffer, pipelines[0]->get_pipeline_layout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pc), &pc);
             
-            // draw call
+            // draw call =====================================================================================
+            renderer.m_dispatch.cmdDrawIndexed(command_buffer, static_cast<uint32_t>(model.indices.size()), 1, 0, 0, 0);
+        }
+
+        // Rendering transparent objects =====================================================================
+        renderer.bind_pipeline_and_descriptors(command_buffer, 1, current_frame);
+        renderer.set_default_viewport_and_scissor(command_buffer);
+
+        for(int mod = 0; mod < transparent_models.size(); mod++) {
+            const Engine::Model &model = transparent_models[mod];
+
+            // Retreive vertex and index buffers =============================================================
+            VkBuffer vertex_buffers[] = {renderer.get_buffer(model.vertex_buffer_idx)};
+            VkDeviceSize offsets[] = {0};
+            VkBuffer index_buffer = renderer.get_buffer(model.index_buffer_idx);
+            
+            // Bind vertex and index buffers =================================================================
+            renderer.m_dispatch.cmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers, offsets);
+            renderer.m_dispatch.cmdBindIndexBuffer(command_buffer, index_buffer, 0, VK_INDEX_TYPE_UINT32);
+
+            // Set push constants ============================================================================
+            pc.model = model.model_matrix;
+            renderer.m_dispatch.cmdPushConstants(command_buffer, pipelines[0]->get_pipeline_layout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pc), &pc);
+            
+            // draw call =====================================================================================
             renderer.m_dispatch.cmdDrawIndexed(command_buffer, static_cast<uint32_t>(model.indices.size()), 1, 0, 0, 0);
         }
 

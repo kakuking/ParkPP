@@ -1,6 +1,6 @@
 <!-- markdownlint-disable-file MD -->
 
-# 👾🎮 PoggerPark: A Vulkan-Based game engine! 📽️👾
+# 👾scenerPark: A Vulkan-Based game engine! 📽️👾
 
 A very simple game "engine" in C++. Only the Vulkan SDK has to be pre-installed, all other libraries are fetched using CMake Fetchfirecr
 
@@ -23,14 +23,16 @@ Most of the Vulkan Functionalities are quite basic, I picked them up from the [V
 9. Multiple textures in one model 🖼🖼🖼
 10. ~~Point~~ Directional Lights ☀ & Shadow mapping 🔦
 11. ~~Maybe~~ Moving from GLFW to SDL ~~or SFML~~ (for audio capabilities and better framerates) 👨‍🔬 
+12. Transparency 🔎
 
 ## Things to implement
 
-1. Transparency 🔎
-2. Billboards and particles 🎆
-3. More complex materials 🎨
-4. Area Lights 🏮
-5. Physics and collisions 🎯
+1. Transparent Shadows 🔎⬛
+2. A better abstraction for scenes and models 🏞⛲
+3. Billboards and particles 🎆
+4. More complex materials 🎨
+5. Area Lights 🏮
+6. Physics and collisions 🎯
 
 ## To build - 
 ### Windows (with MSBuild) -
@@ -50,4 +52,4 @@ msbuild PoggerPark.sln -property:Configuration=Release
 ```
 
 ### Mac & Linux - 
-I don't
+I don'tscenscen

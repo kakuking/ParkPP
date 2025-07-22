@@ -4,6 +4,10 @@
 namespace Engine {
 
 void ShadowPipeline::create_pipeline(Engine::Renderer &device, VkFormat image_format, VkRenderPass old_render_pass) {
+    // to remove warning
+    (void)image_format;
+    (void)old_render_pass;
+
     Engine::PipelineBuilder builder;
     std::vector<VkDescriptorSetLayout> layout = {};
 

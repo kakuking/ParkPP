@@ -4,6 +4,7 @@
 #include <engine/pipeline.h>
 #include <engine/renderer.h>
 #include <engine/models.h>
+#include <engine/scene.h>
 
 #include <game/default_pipeline.h>
 #include <game/default_transparent_pipeline.h>
@@ -12,11 +13,6 @@
 
 #include <iostream>
 #include <chrono>
-
-struct PC {
-    glm::mat4 light;
-    glm::mat4 model;
-};
 
 int main() {
     // Initializing Vulkan  =====================================================================================
@@ -28,56 +24,28 @@ int main() {
     float width = (float) renderer.get_swapchain_extent().width;
     float height = (float) renderer.get_swapchain_extent().height;
     
-    // Initializing Models  =====================================================================================
-    // Engine::Model room_model = Engine::load_obj_model("./models/F1_2026.obj", 0.f);
-    Engine::Model car_model = Engine::load_obj_model_with_material("./models/F1_2026.obj", 0.f, "./models");
-    Engine::Model plane_model = Engine::load_obj_model_with_material("./models/plane.obj", 4.f, "./models");
-    Engine::Model upper_plane_model = Engine::load_obj_model_with_material("./models/plane.obj", 5.f, "./models");
-    upper_plane_model.model_matrix = glm::translate(glm::mat4(1.f), glm::vec3(0.0f, 0.0f, 4.0f)) * glm::scale(glm::mat4(1.f), glm::vec3(0.5f, 0.5f, 1.0f)) * upper_plane_model.model_matrix;
+    // Initializing Scene  =====================================================================================
+    Engine::Scene scene;
 
-    car_model.create_buffers(renderer);
-    plane_model.create_buffers(renderer);
-    upper_plane_model.create_buffers(renderer);
-    
-    std::vector<Engine::Model> models = {car_model, plane_model};
-    std::vector<Engine::Model> transparent_models = {upper_plane_model};
-    std::vector<std::string> texture_filenames = {"textures/Livery.jpg", "textures/Checkerboard.png", "textures/WheelCovers.jpg", "textures/TyreSoft.png", "textures/Checkerboard.png", "textures/red_board.png"};
-    
-    // Initializing UBO & Textures  =============================================================================
+    Engine::ModelInfo car = scene.add_model_with_material("models/F1_2026.obj", {"textures/Livery.jpg", "textures/Checkerboard.png", "textures/WheelCovers.jpg", "textures/TyreSoft.png"});
+    Engine::ModelInfo ground = scene.add_model_with_material("./models/plane.obj", {"textures/Checkerboard.png"});
+    Engine::ModelInfo red_plane = scene.add_model_with_material("./models/plane.obj", {"textures/red_board.png"}, false);
+
+    glm::mat4 t = glm::translate(glm::mat4(1.f), glm::vec3(0.f, 0.f, 4.f)) * glm::scale(glm::mat4(1.f), glm::vec3(.5f, .5f, 1.f));
+    scene.update_transparent_model_transform(red_plane, t, false);
+
     float camera_d = 10.f;
-    Game::UniformBufferObject ubo{};
-    ubo.view = glm::lookAt(glm::vec3(camera_d, camera_d, camera_d), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 0.f, 1.f));
-    ubo.proj = glm::perspective(glm::radians(45.f), width / height, 0.1f, 100.f);
-    ubo.proj[1][1] *= -1;
-
-    glm::vec3 light_pos = glm::vec3(0.0f, 5.0f, 5.0f); // light above and at an angle
+    glm::vec3 eye(camera_d, camera_d, camera_d);
+    glm::vec3 look_at(0.f, 0.f, 0.f);
+    glm::vec3 up(0.f, 0.f, 1.f);
+    glm::vec3 light_pos = glm::vec3(0.0f, 5.0f, 3.0f); // light above and at an angle
     glm::vec3 light_target = glm::vec3(0.0f, 0.0f, 0.0f);
     glm::vec3 light_up = glm::vec3(0.0f, 1.0f, 0.0f);
-    glm::mat4 light_view = glm::lookAt(light_pos, light_target, light_up);
 
-    float ortho_half_size = 6.0f; // gives you a 10x10 square area
-    float near_plane = 1.0f;
-    float far_plane = 10.0f;
-    glm::mat4 light_proj = glm::ortho(
-        -ortho_half_size, ortho_half_size,
-        -ortho_half_size, ortho_half_size,
-        near_plane, far_plane
-    );
+    scene.set_perspective_camera(eye, look_at, up, width / height, 0.1f, 100.f, 45.f);
+    scene.add_orthographic_light(renderer, light_pos, light_target, light_up, 0.1f, 15.f, 6.f);
 
-    light_proj[1][1] *= -1;
-    glm::mat4 light_pv = light_proj * light_view;
-
-    renderer.add_light(light_pv, 0);
-
-    light_pv;
-    
-    size_t ub_idx = renderer.create_uniform_group<Game::UniformBufferObject>(1, VK_SHADER_STAGE_VERTEX_BIT);
-    renderer.update_uniform_group(ub_idx, &ubo);
-    
-    // renderer.add_texture("textures/viking_room.jpg", 1);
-    uint32_t num_textures = static_cast<uint32_t>(texture_filenames.size());
-    uint32_t layer_count = num_textures < 4 ? 4: num_textures;
-    renderer.add_texture_array(texture_filenames, 1024, 1024, layer_count, 2);
+    scene.create_buffers(renderer);
     
     // Initializing Program =====================================================================================
     std::vector<Engine::Pipeline*> pipelines = {&pipeline, &transparent_pipeline};
@@ -98,66 +66,29 @@ int main() {
         previous_frame_time = current_time;
         total_time += delta_time;
         
-        if (true) {
+        if (false) {
             double fps = delta_time > 0.0 ? 1.0 / delta_time: 0.0;
             fmt::println("{}", fps);
         }
 
-        renderer.render_shadow_maps(command_buffer, models);
+        // Updating scene ==============================================================================
+        scene.update(delta_time);
+
+        renderer.render_shadow_maps(command_buffer, scene.m_opaque_models);
 
         renderer.begin_render_pass(command_buffer, image_index);
+        // Rendering opaque objects =====================================================================
         renderer.bind_pipeline_and_descriptors(command_buffer, 0, current_frame);
         renderer.set_default_viewport_and_scissor(command_buffer);
 
-        // Updating the uniform buffers ======================================================================
-        ubo.view = glm::lookAt(glm::vec3(camera_d * cosf(total_time), camera_d * sinf(total_time),  camera_d), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 0.f, 1.f));
-        renderer.update_uniform_group(ub_idx, &ubo);
-
-        PC pc;
-        pc.light = light_pv;
-
-        for(int mod = 0; mod < models.size(); mod++) {
-            const Engine::Model &model = models[mod];
-
-            // Retreive vertex and index buffers =============================================================
-            VkBuffer vertex_buffers[] = {renderer.get_buffer(model.vertex_buffer_idx)};
-            VkDeviceSize offsets[] = {0};
-            VkBuffer index_buffer = renderer.get_buffer(model.index_buffer_idx);
-            
-            // Bind vertex and index buffers =================================================================
-            renderer.m_dispatch.cmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers, offsets);
-            renderer.m_dispatch.cmdBindIndexBuffer(command_buffer, index_buffer, 0, VK_INDEX_TYPE_UINT32);
-
-            // Set push constants ============================================================================
-            pc.model = model.model_matrix;
-            renderer.m_dispatch.cmdPushConstants(command_buffer, pipelines[0]->get_pipeline_layout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pc), &pc);
-            
-            // draw call =====================================================================================
-            renderer.m_dispatch.cmdDrawIndexed(command_buffer, static_cast<uint32_t>(model.indices.size()), 1, 0, 0, 0);
-        }
+        scene.render_opaque_models(renderer, command_buffer);
 
         // Rendering transparent objects =====================================================================
-        renderer.bind_pipeline_and_descriptors(command_buffer, 1, current_frame);
-        renderer.set_default_viewport_and_scissor(command_buffer);
-
-        for(int mod = 0; mod < transparent_models.size(); mod++) {
-            const Engine::Model &model = transparent_models[mod];
-
-            // Retreive vertex and index buffers =============================================================
-            VkBuffer vertex_buffers[] = {renderer.get_buffer(model.vertex_buffer_idx)};
-            VkDeviceSize offsets[] = {0};
-            VkBuffer index_buffer = renderer.get_buffer(model.index_buffer_idx);
-            
-            // Bind vertex and index buffers =================================================================
-            renderer.m_dispatch.cmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers, offsets);
-            renderer.m_dispatch.cmdBindIndexBuffer(command_buffer, index_buffer, 0, VK_INDEX_TYPE_UINT32);
-
-            // Set push constants ============================================================================
-            pc.model = model.model_matrix;
-            renderer.m_dispatch.cmdPushConstants(command_buffer, pipelines[0]->get_pipeline_layout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pc), &pc);
-            
-            // draw call =====================================================================================
-            renderer.m_dispatch.cmdDrawIndexed(command_buffer, static_cast<uint32_t>(model.indices.size()), 1, 0, 0, 0);
+        if (scene.m_transparent_models.size() > 0) {
+            renderer.bind_pipeline_and_descriptors(command_buffer, 1, current_frame);
+            renderer.set_default_viewport_and_scissor(command_buffer);
+    
+            scene.render_transparent_models(renderer, command_buffer);
         }
 
         renderer.end_render_pass_and_command_buffer(command_buffer);

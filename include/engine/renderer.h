@@ -16,6 +16,7 @@
 #include <engine/window.h>
 #include <engine/image.h>
 #include <engine/pipeline.h>
+#include <engine/models.h>
 
 const int MAX_FRAMES_IN_FLIGHT = 2;
 
@@ -23,22 +24,12 @@ namespace Engine {
 class Pipeline;
 class Texture;
 struct Model;
+struct Light;
 
 struct UniformBufferGroup {
     size_t m_base_index;
     size_t m_size;
     uint32_t m_binding;
-};
-
-struct Light {
-    glm::mat4 mvp;
-    VkImageView image_view;
-    VkFramebuffer framebuffer;
-
-    void cleanup(vkb::DispatchTable &dispatch_table) {
-        dispatch_table.destroyImageView(image_view, nullptr);
-        dispatch_table.destroyFramebuffer(framebuffer, nullptr);
-    }
 };
 
 class Renderer {
@@ -88,15 +79,40 @@ public:
     void render_shadow_maps(VkCommandBuffer command_buffer, std::vector<Engine::Model> &models);
 
     template<typename T>
-    size_t create_uniform_group(uint32_t binding, VkShaderStageFlags stage_flags) {
+    size_t create_uniform_group(uint32_t binding, VkShaderStageFlags stage_flags, bool storage_buffer=false) {
         if(binding == 0)
             throw std::runtime_error("Binding 0 is reserved for teh shadowmap in the frag shader");
         size_t ub_size = sizeof(T);
-        size_t first_uniform_buffer_idx = create_uniform_buffer(ub_size);
+        size_t first_uniform_buffer_idx = storage_buffer ? create_storage_buffer(ub_size): create_uniform_buffer(ub_size);
 
         VkDescriptorSetLayoutBinding ubo_layout_binding{};
         ubo_layout_binding.binding = binding;
-        ubo_layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        ubo_layout_binding.descriptorType = !storage_buffer ? VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER: VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        ubo_layout_binding.descriptorCount = 1;
+        ubo_layout_binding.stageFlags = stage_flags;
+        ubo_layout_binding.pImmutableSamplers = nullptr;
+
+        VkDescriptorBindingFlags ubo_binding_flags = 0; 
+        add_descriptor_set_layout_binding(ubo_layout_binding, ubo_binding_flags);
+
+        UniformBufferGroup new_ubg{};
+        new_ubg.m_base_index = first_uniform_buffer_idx;
+        new_ubg.m_binding = binding;
+        new_ubg.m_size = ub_size;
+
+        m_uniforms.push_back(new_ubg);
+
+        return m_uniforms.size() - 1;
+    }
+    size_t create_uniform_group(uint32_t binding, uint32_t size, VkShaderStageFlags stage_flags, bool storage_buffer=false) {
+        if(binding == 0)
+            throw std::runtime_error("Binding 0 is reserved for teh shadowmap in the frag shader");
+        size_t ub_size = size;
+        size_t first_uniform_buffer_idx = storage_buffer ? create_storage_buffer(ub_size): create_uniform_buffer(ub_size);
+
+        VkDescriptorSetLayoutBinding ubo_layout_binding{};
+        ubo_layout_binding.binding = binding;
+        ubo_layout_binding.descriptorType = !storage_buffer ? VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER: VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         ubo_layout_binding.descriptorCount = 1;
         ubo_layout_binding.stageFlags = stage_flags;
         ubo_layout_binding.pImmutableSamplers = nullptr;
@@ -114,6 +130,8 @@ public:
         return m_uniforms.size() - 1;
     }
     void update_uniform_group(size_t idx, void* data);
+    size_t create_storage_buffer(VkDeviceSize buffer_size);
+
 
     bool window_should_close();
     VkRenderPass get_render_pass() { return m_render_pass; }
@@ -126,6 +144,7 @@ public:
     VkPhysicalDeviceProperties get_physical_device_properties() { return m_physical_device_properties; }
     VkFormat find_depth_format();
     VkSampleCountFlagBits get_msaa_sample_count() { return m_msaa_samples; }
+    VkPipelineLayout get_pipeline_layout(size_t pipeline_idx=0) { return m_pipelines[pipeline_idx]->get_pipeline_layout(); }
 
 private:
 
@@ -191,7 +210,8 @@ private:
     std::vector<VkDescriptorBindingFlags> m_descriptor_binding_flags;
     VkDescriptorSetLayout m_descriptor_set_layout;
     std::vector<VkDescriptorSet> m_descriptor_sets;
-    uint32_t num_buffer_descriptor_sets = 0, num_image_descriptor_sets = 0;
+    // uint32_t num_buffer_descriptor_sets = 0, num_image_descriptor_sets = 0;
+    std::map<VkDescriptorType, uint32_t> m_num_descriptor_sets;
 
     // buffers and buffer_memories
     std::vector<VkBuffer> m_buffers;

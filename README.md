@@ -27,11 +27,11 @@ Most of the Vulkan Functionalities are quite basic, I picked them up from the [V
 
 ## Things to implement
 
-1. Transparent Shadows 🔎⬛
-2. A better abstraction for scenes and models 🏞⛲
-3. Billboards and particles 🎆
-4. More complex materials 🎨
-5. Area Lights 🏮
+1. A better abstraction for scenes and models 🏞⛲
+2. Billboards and particles 🎆
+3. More complex materials 🎨
+4. Area Lights 🏮
+5. Transparent Shadows 🔎⬛
 6. Physics and collisions 🎯
 
 ## To build - 

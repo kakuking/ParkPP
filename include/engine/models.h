@@ -76,6 +76,25 @@ struct Vertex {
     }
 };
 
+struct Light {
+    glm::mat4 mvp;
+    VkImageView image_view;
+    VkFramebuffer framebuffer;
+    int type;   // 0 is directional
+
+    void cleanup(vkb::DispatchTable &dispatch_table) {
+        dispatch_table.destroyImageView(image_view, nullptr);
+        dispatch_table.destroyFramebuffer(framebuffer, nullptr);
+    }
+};
+
+struct PushConstants {
+    glm::mat4 proj;
+    glm::mat4 view;
+    glm::mat4 light;
+    glm::vec4 light_pos;
+};
+
 struct Model {
     std::vector<Vertex> vertices;
     std::vector<uint32_t> indices;
@@ -89,8 +108,11 @@ struct Model {
     void refresh_buffers(Engine::Renderer &renderer);
 };
 
-Model load_obj_model(std::string filename, float base_texture=0.f);
-Model load_obj_model_with_material(std::string filename, float base_texture=0.f, std::string base_dir="");
+struct ModelInfo {
+    size_t model_idx;               // idx in scene models
+    size_t model_sub_idx;           // idx within a model
+    size_t model_transform_idx;     // idx for the transform 
+};
 
 }
 
@@ -105,12 +127,4 @@ namespace std {
             return (((h1 ^ (h2 << 1)) >> 1) ^ (h3 << 1)) ^ (h4 << 1);
         }
     };
-}
-
-namespace Game {
-struct UniformBufferObject {
-    // glm::mat4 model;
-    glm::mat4 view;
-    glm::mat4 proj;
-};
 }

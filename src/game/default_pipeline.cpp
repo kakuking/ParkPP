@@ -7,12 +7,7 @@ void DefaultPipeline::create_pipeline(Engine::Renderer &device, VkFormat image_f
     Engine::PipelineBuilder builder;
     std::vector<VkDescriptorSetLayout> layout = {device.get_descriptor_set_layout()};
 
-    struct PC {
-        glm::mat4 light;
-        glm::mat4 model;
-    };
-
-    builder.add_push_constants(sizeof(PC));
+    builder.add_push_constants(sizeof(Engine::PushConstants));
 
     builder.create_pipeline_layout(device, layout);
     

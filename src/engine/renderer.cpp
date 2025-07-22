@@ -331,6 +331,13 @@ size_t Renderer::create_uniform_buffer(VkDeviceSize buffer_size) {
     return create_buffer(buffer_size, usage, memory_props, true);
 }
 
+size_t Renderer::create_storage_buffer(VkDeviceSize buffer_size) {
+    uint32_t usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+    uint32_t memory_props = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+
+    return create_buffer(buffer_size, usage, memory_props, true);
+}
+
 void Renderer::update_buffer(size_t buffer_idx, void* src_data, size_t src_data_size) {
     // VkBuffer &buffer = m_buffers[buffer_idx];
     VkDeviceMemory &buffer_memory = m_buffer_memories[buffer_idx];
@@ -621,17 +628,28 @@ void Renderer::cleanup_swapchain() {
 
 // TODO - add functionality for pool to automatically be size of descriptors added
 void Renderer::create_descriptor_pool() {
-    std::vector<VkDescriptorPoolSize> pool_sizes(2, {});
-    pool_sizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    pool_sizes[0].descriptorCount = static_cast<uint32_t>(num_buffer_descriptor_sets * MAX_FRAMES_IN_FLIGHT);
-    pool_sizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    pool_sizes[1].descriptorCount = static_cast<uint32_t>((num_image_descriptor_sets + 1) * MAX_FRAMES_IN_FLIGHT); // 1 for the shadow map sampler
+    std::vector<VkDescriptorPoolSize> pool_sizes;
+    uint32_t total_descriptors = 0;
+    
+    // pool_sizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    // pool_sizes[0].descriptorCount = static_cast<uint32_t>(num_buffer_descriptor_sets * MAX_FRAMES_IN_FLIGHT);
+    // pool_sizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    // pool_sizes[1].descriptorCount = static_cast<uint32_t>((num_image_descriptor_sets + 1) * MAX_FRAMES_IN_FLIGHT); // 1 for the shadow map sampler
+    
+    for (const auto& [type, count] : m_num_descriptor_sets) {
+        VkDescriptorPoolSize pool_size{};
+        pool_size.type = type;
+        pool_size.descriptorCount = count * MAX_FRAMES_IN_FLIGHT;
+        pool_sizes.push_back(pool_size);
+
+        total_descriptors += count;
+    }
 
     VkDescriptorPoolCreateInfo pool_info{};
     pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     pool_info.poolSizeCount = static_cast<uint32_t>(pool_sizes.size());
     pool_info.pPoolSizes = pool_sizes.data();
-    pool_info.maxSets = static_cast<uint32_t>((num_buffer_descriptor_sets + num_image_descriptor_sets) * MAX_FRAMES_IN_FLIGHT);
+    pool_info.maxSets = static_cast<uint32_t>(total_descriptors * MAX_FRAMES_IN_FLIGHT);
 
     if(m_dispatch.createDescriptorPool(&pool_info, nullptr, &m_descriptor_pool) != VK_SUCCESS)
         throw std::runtime_error("Failed to create a descriptor pool!");
@@ -714,17 +732,20 @@ bool Renderer::window_should_close() {
 void Renderer::add_descriptor_set_layout_binding(VkDescriptorSetLayoutBinding binding, VkDescriptorBindingFlags binding_flag) { 
     m_descriptor_bindings.push_back(binding); 
     m_descriptor_binding_flags.push_back(binding_flag); 
-    if (binding.descriptorType == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER)
-        num_buffer_descriptor_sets++;
-    else if(binding.descriptorType == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
-        num_image_descriptor_sets++;
+
+    auto it = m_num_descriptor_sets.find(binding.descriptorType);
+    if (it != m_num_descriptor_sets.end())
+        it->second++;
+    else
+        m_num_descriptor_sets[binding.descriptorType] = 1;
+
+    // if (binding.descriptorType == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER)
+    //     num_buffer_descriptor_sets++;
+    // else if(binding.descriptorType == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+    //     num_image_descriptor_sets++;
 }
 
 void Renderer::create_descriptor_set_layout() {
-
-    // for (int i = 0; i < m_descriptor_bindings.size(); i++)
-    //    fmt::println("Binding {}", m_descriptor_bindings[i].binding);
-
     VkDescriptorSetLayoutCreateInfo layout_info{};
     layout_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
     layout_info.bindingCount = static_cast<uint32_t>(m_descriptor_bindings.size());
@@ -737,17 +758,17 @@ void Renderer::create_descriptor_set_layout() {
 
 // [binding][frame]
 void Renderer::create_descriptor_sets() {
-    std::vector<std::vector<uint32_t>> uniform_buffer_indices; 
-    std::vector<std::vector<uint32_t>> uniform_buffer_sizes;
-    for(int i = 0; i < m_uniforms.size(); i++) {
-        std::vector<uint32_t> temp_indices, temp_sizes;
-        for(int j = 0; j < MAX_FRAMES_IN_FLIGHT; j++) {
-            temp_indices.push_back((uint32_t) m_uniforms[i].m_base_index);
-            temp_sizes.push_back((uint32_t) m_uniforms[i].m_size);
-        }
-        uniform_buffer_indices.push_back(temp_indices);
-        uniform_buffer_sizes.push_back(temp_sizes);
-    }
+    // std::vector<std::vector<uint32_t>> uniform_buffer_indices; 
+    // std::vector<std::vector<uint32_t>> uniform_buffer_sizes;
+    // for(int i = 0; i < m_uniforms.size(); i++) {
+    //     std::vector<uint32_t> temp_indices, temp_sizes;
+    //     for(int j = 0; j < MAX_FRAMES_IN_FLIGHT; j++) {
+    //         temp_indices.push_back((uint32_t) m_uniforms[i].m_base_index);
+    //         temp_sizes.push_back((uint32_t) m_uniforms[i].m_size);
+    //     }
+    //     uniform_buffer_indices.push_back(temp_indices);
+    //     uniform_buffer_sizes.push_back(temp_sizes);
+    // }
 
     std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, m_descriptor_set_layout);
     
@@ -761,81 +782,139 @@ void Renderer::create_descriptor_sets() {
     if (m_dispatch.allocateDescriptorSets(&alloc_info, m_descriptor_sets.data()) != VK_SUCCESS)
         throw std::runtime_error("Failed to allocate descriptor sets!");
 
-    const size_t num_uniform_buffer_bindings = uniform_buffer_indices.size();
-    const size_t num_images = m_textures.size();
-    const size_t num_image_arrays = m_texture_arrays.size();
+    // const size_t num_uniform_buffer_bindings = uniform_buffer_indices.size();
+    // const size_t num_images = m_textures.size();
+    // const size_t num_image_arrays = m_texture_arrays.size();
 
     for (size_t frame = 0; frame < MAX_FRAMES_IN_FLIGHT; ++frame) {
+        // std::vector<VkWriteDescriptorSet> descriptor_writes;
+        // std::vector<VkDescriptorBufferInfo> buffer_infos(num_uniform_buffer_bindings); // needs to persist per frame
+        // std::vector<VkDescriptorImageInfo> image_infos(num_images); // needs to persist per frame
+        // std::vector<VkDescriptorImageInfo> image_array_infos(num_image_arrays); // needs to persist per frame
+
+        // // shadow part =====================================================================
+        // VkDescriptorImageInfo shadow_image_info{};
+        // shadow_image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        // shadow_image_info.imageView = m_shadow_map_image.m_image_view;
+        // shadow_image_info.sampler = m_shadow_map_image.m_sampler;       
+        
+        // VkWriteDescriptorSet shadow_write{};
+        // shadow_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        // shadow_write.dstSet = m_descriptor_sets[frame];
+        // shadow_write.dstBinding = 0;
+        // shadow_write.dstArrayElement = 0;
+        // shadow_write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        // shadow_write.descriptorCount = 1;
+        // shadow_write.pImageInfo = &shadow_image_info;
+        
+        // descriptor_writes.push_back(shadow_write);
+        // // shadow part end  ================================================================
+
+        // for (size_t binding = 0; binding < num_uniform_buffer_bindings; ++binding) {
+        //     buffer_infos[binding].buffer = m_buffers[uniform_buffer_indices[binding][frame]];
+        //     buffer_infos[binding].offset = 0;
+        //     buffer_infos[binding].range = uniform_buffer_sizes[binding][frame];
+
+        //     VkWriteDescriptorSet descriptor_write{};
+        //     descriptor_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        //     descriptor_write.dstSet = m_descriptor_sets[frame];
+        //     descriptor_write.dstBinding = static_cast<uint32_t>(binding + 1);
+        //     descriptor_write.dstArrayElement = 0;
+        //     descriptor_write.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        //     descriptor_write.descriptorCount = 1;
+        //     descriptor_write.pBufferInfo = &buffer_infos[binding];
+
+        //     descriptor_writes.push_back(descriptor_write);
+        // }
+
+        // for(size_t binding = 0; binding < num_images; binding++) {
+        //     image_infos[binding].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        //     image_infos[binding].imageView = m_textures[binding].m_image_view;
+        //     image_infos[binding].sampler = m_textures[binding].m_sampler;
+
+        //     VkWriteDescriptorSet descriptor_write{};
+        //     descriptor_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        //     descriptor_write.dstSet = m_descriptor_sets[frame];
+        //     descriptor_write.dstBinding = static_cast<uint32_t>(binding + 1 + num_uniform_buffer_bindings);
+        //     descriptor_write.dstArrayElement = 0;
+        //     descriptor_write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        //     descriptor_write.descriptorCount = 1;
+        //     descriptor_write.pImageInfo = &image_infos[binding];
+
+        //     descriptor_writes.push_back(descriptor_write);
+        // }
+
+        // for (size_t i = 0; i < num_image_arrays; ++i) {
+        //     image_array_infos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        //     image_array_infos[i].imageView = m_texture_arrays[i].m_image_view;
+        //     image_array_infos[i].sampler = m_texture_arrays[i].m_sampler;
+
+        //     VkWriteDescriptorSet descriptor_write{};
+        //     descriptor_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        //     descriptor_write.dstSet = m_descriptor_sets[frame];
+        //     descriptor_write.dstBinding = static_cast<uint32_t>(num_uniform_buffer_bindings + num_images + i + 1); // <-- note offset
+        //     descriptor_write.dstArrayElement = 0;
+        //     descriptor_write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        //     descriptor_write.descriptorCount = 1;
+        //     descriptor_write.pImageInfo = &image_array_infos[i];
+
+        //     descriptor_writes.push_back(descriptor_write);
+        // }
+
         std::vector<VkWriteDescriptorSet> descriptor_writes;
-        std::vector<VkDescriptorBufferInfo> buffer_infos(num_uniform_buffer_bindings); // needs to persist per frame
-        std::vector<VkDescriptorImageInfo> image_infos(num_images); // needs to persist per frame
-        std::vector<VkDescriptorImageInfo> image_array_infos(num_image_arrays); // needs to persist per frame
+        std::vector<VkDescriptorBufferInfo> buffer_infos;
+        std::vector<VkDescriptorImageInfo> image_infos;
 
-        VkDescriptorImageInfo shadow_image_info{};
-        shadow_image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        shadow_image_info.imageView = m_shadow_map_image.m_image_view;  // <- your shadow map array view
-        shadow_image_info.sampler = m_shadow_map_image.m_sampler;       // <- its sampler
+        size_t uniform_index = 0;
+        size_t texture_index = 0;
+        size_t texture_array_index = 0;
 
-        VkWriteDescriptorSet shadow_write{};
-        shadow_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        shadow_write.dstSet = m_descriptor_sets[frame];
-        shadow_write.dstBinding = 0;
-        shadow_write.dstArrayElement = 0;
-        shadow_write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        shadow_write.descriptorCount = 1;
-        shadow_write.pImageInfo = &shadow_image_info;
+        for (const auto& binding : m_descriptor_bindings) {
+            VkWriteDescriptorSet write{};
+            write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            write.dstSet = m_descriptor_sets[frame];
+            write.dstBinding = binding.binding;
+            write.dstArrayElement = 0;
+            write.descriptorCount = 1;
+            write.descriptorType = binding.descriptorType;
 
-        descriptor_writes.push_back(shadow_write);
+            if (binding.descriptorType == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER || binding.descriptorType == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER) {
+                VkDescriptorBufferInfo buffer_info{};
+                buffer_info.buffer = m_buffers[m_uniforms[uniform_index].m_base_index + frame];
+                buffer_info.offset = 0;
+                buffer_info.range = m_uniforms[uniform_index].m_size;
 
-        for (size_t binding = 0; binding < num_uniform_buffer_bindings; ++binding) {
-            buffer_infos[binding].buffer = m_buffers[uniform_buffer_indices[binding][frame]];
-            buffer_infos[binding].offset = 0;
-            buffer_infos[binding].range = uniform_buffer_sizes[binding][frame];
+                buffer_infos.push_back(buffer_info);
+                write.pBufferInfo = &buffer_infos.back();
 
-            VkWriteDescriptorSet descriptor_write{};
-            descriptor_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-            descriptor_write.dstSet = m_descriptor_sets[frame];
-            descriptor_write.dstBinding = static_cast<uint32_t>(binding + 1);
-            descriptor_write.dstArrayElement = 0;
-            descriptor_write.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-            descriptor_write.descriptorCount = 1;
-            descriptor_write.pBufferInfo = &buffer_infos[binding];
+                uniform_index++;
+            } else if (binding.descriptorType == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER) {
+                VkDescriptorImageInfo image_info{};
 
-            descriptor_writes.push_back(descriptor_write);
-        }
+                if (binding.binding == 0) {
+                    // Shadow map
+                    image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+                    image_info.imageView = m_shadow_map_image.m_image_view;
+                    image_info.sampler = m_shadow_map_image.m_sampler;
+                } else if (texture_index < m_textures.size()) {
+                    image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+                    image_info.imageView = m_textures[texture_index].m_image_view;
+                    image_info.sampler = m_textures[texture_index].m_sampler;
 
-        for(size_t binding = 0; binding < num_images; binding++) {
-            image_infos[binding].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-            image_infos[binding].imageView = m_textures[binding].m_image_view;
-            image_infos[binding].sampler = m_textures[binding].m_sampler;
+                    texture_index++;
+                } else if (texture_array_index < m_texture_arrays.size()) {
+                    image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+                    image_info.imageView = m_texture_arrays[texture_array_index].m_image_view;
+                    image_info.sampler = m_texture_arrays[texture_array_index].m_sampler;
 
-            VkWriteDescriptorSet descriptor_write{};
-            descriptor_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-            descriptor_write.dstSet = m_descriptor_sets[frame];
-            descriptor_write.dstBinding = static_cast<uint32_t>(binding + 1 + num_uniform_buffer_bindings);
-            descriptor_write.dstArrayElement = 0;
-            descriptor_write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-            descriptor_write.descriptorCount = 1;
-            descriptor_write.pImageInfo = &image_infos[binding];
+                    texture_array_index++;
+                }
 
-            descriptor_writes.push_back(descriptor_write);
-        }
+                image_infos.push_back(image_info);
+                write.pImageInfo = &image_infos.back();
+            }
 
-        for (size_t i = 0; i < num_image_arrays; ++i) {
-            image_array_infos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-            image_array_infos[i].imageView = m_texture_arrays[i].m_image_view;
-            image_array_infos[i].sampler = m_texture_arrays[i].m_sampler;
-
-            VkWriteDescriptorSet descriptor_write{};
-            descriptor_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-            descriptor_write.dstSet = m_descriptor_sets[frame];
-            descriptor_write.dstBinding = static_cast<uint32_t>(num_uniform_buffer_bindings + num_images + i + 1); // <-- note offset
-            descriptor_write.dstArrayElement = 0;
-            descriptor_write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-            descriptor_write.descriptorCount = 1;
-            descriptor_write.pImageInfo = &image_array_infos[i];
-
-            descriptor_writes.push_back(descriptor_write);
+            descriptor_writes.push_back(write);
         }
 
         // Use buffer_infos, which lives long enough for the call
@@ -901,6 +980,7 @@ void Renderer::update_uniform_group(size_t idx, void* data) {
 int Renderer::add_light(glm::mat4 mvp, int type) {
     Light light{};
     light.mvp = mvp;
+    light.type = type;
 
     m_lights.push_back(light);
 

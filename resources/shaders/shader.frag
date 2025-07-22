@@ -20,7 +20,7 @@ const vec2 pcf_filter_kernel[16] = vec2[](
 float shadow_pcf(vec3 projCoords, float z_depth, float layer) {
     float shadow = 0.0;
     float texelSize = 1.0 / textureSize(shadowMapSampler, 0).x;
-    float kernel_radius = 4.0; // Controls softness (2.0 = ~4 texels wide)
+    float kernel_radius = 4.0;
 
     float bias = 0.003;
     float biased_z = z_depth - bias;

@@ -1,6 +1,9 @@
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 
+#include <SDL3/SDL.h>
+#include <SDL3/SDL_main.h>
+
 #include <engine/pipeline.h>
 #include <engine/renderer.h>
 #include <engine/models.h>
@@ -14,7 +17,33 @@
 #include <iostream>
 #include <chrono>
 
-int main() {
+#ifdef _WIN32
+    #include <windows.h>
+    #include <io.h>
+    #include <fcntl.h>
+
+    void attach_console() {
+        if (AttachConsole(ATTACH_PARENT_PROCESS)) {
+            // Redirect stdio handles to console
+            FILE* dummy;
+            freopen_s(&dummy, "CONOUT$", "w", stdout);
+            freopen_s(&dummy, "CONOUT$", "w", stderr);
+            freopen_s(&dummy, "CONIN$", "r", stdin);
+
+            // Optional: disable buffering to see output immediately
+            setvbuf(stdout, nullptr, _IONBF, 0);
+            setvbuf(stderr, nullptr, _IONBF, 0);
+        }
+    }
+#endif
+
+int main(int argc, char** argv) {
+    (void) argc; (void) argv;
+
+    #ifdef _WIN32
+        attach_console(); // Attach to console of parent process if any
+    #endif
+
     // Initializing Vulkan  =====================================================================================
     Engine::Renderer renderer;
     Game::DefaultPipeline pipeline;
@@ -29,10 +58,10 @@ int main() {
 
     Engine::ModelInfo car = scene.add_model_with_material("models/F1_2026.obj", {"textures/Livery.jpg", "textures/Checkerboard.png", "textures/WheelCovers.jpg", "textures/TyreSoft.png"});
     Engine::ModelInfo ground = scene.add_model_with_material("./models/plane.obj", {"textures/Checkerboard.png"});
-    Engine::ModelInfo red_plane = scene.add_model_with_material("./models/plane.obj", {"textures/red_board.png"}, false);
+    // Engine::ModelInfo red_plane = scene.add_model_with_material("./models/plane.obj", {"textures/red_board.png"}, false);
 
-    glm::mat4 t = glm::translate(glm::mat4(1.f), glm::vec3(0.f, 0.f, 4.f)) * glm::scale(glm::mat4(1.f), glm::vec3(.5f, .5f, 1.f));
-    scene.update_transparent_model_transform(red_plane, t, false);
+    // glm::mat4 t = glm::translate(glm::mat4(1.f), glm::vec3(0.f, 0.f, 4.f)) * glm::scale(glm::mat4(1.f), glm::vec3(.5f, .5f, 1.f));
+    // scene.update_transparent_model_transform(red_plane, t, false);
 
     float camera_d = 10.f;
     glm::vec3 eye(camera_d, camera_d, camera_d);

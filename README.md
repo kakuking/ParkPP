@@ -30,11 +30,14 @@ Most of the Vulkan Functionalities are quite basic. I picked them up from the [V
 
 ## Things to implement
 
-1. Billboards and particles 🎆
-2. More complex materials 🎨
-3. Area Lights 🏮
-4. Transparent Shadows 🔎⬛
-5. Physics and collisions 🎯
+1. Billboards 🌿 
+2. Area Lights 🏮
+3. More complex materials 🎨
+4. Physics and collisions 🎯
+
+## Ideas for the future
+* Transparent Shadows 🔎⬛
+* Particles 🎆
 
 ## To build - 
 ### Windows (with MSBuild) -
@@ -52,6 +55,8 @@ msbuild PoggerPark.sln -property:Configuration=Release
 
 .\Release\PoggerPark.exe
 ```
+
+To detach the GUI from a terminal, uncomment the appropriate line in CMakeLists.txt in the *"add_executable"* call.
 
 ### Mac & Linux - 
 I don't know 😅

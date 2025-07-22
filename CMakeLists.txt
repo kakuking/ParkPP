@@ -9,10 +9,19 @@ add_subdirectory(ext)
 file(GLOB_RECURSE POGGERPARK_SOURCES "src/**/*.cpp" "src/*.cpp")
 file(GLOB_RECURSE POGGERPARK_HEADERS "include/**/*.h" "include/*.h")
 
-add_executable(PoggerPark
-  ${POGGERPARK_SOURCES}
-  ${POGGERPARK_HEADERS}
-)
+if (WIN32)
+  add_executable(PoggerPark
+    # WIN32 # Uncomment to detach GUI from terminal
+    ${POGGERPARK_SOURCES}
+    ${POGGERPARK_HEADERS}
+  )
+else()
+  add_executable(PoggerPark
+    ${POGGERPARK_SOURCES}
+    ${POGGERPARK_HEADERS}
+  )
+endif()
+
 
 # Include directories
 target_include_directories(PoggerPark PRIVATE
@@ -45,6 +54,8 @@ if (WIN32)
       "$<TARGET_FILE:SDL3::SDL3>"
       $<TARGET_FILE_DIR:PoggerPark>
   )
+
+  # set_target_properties(PoggerPark PROPERTIES WIN32_EXECUTABLE TRUE)
 endif()
 
 # ImGui source files

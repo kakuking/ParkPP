@@ -1,6 +1,6 @@
 <!-- markdownlint-disable-file MD -->
 
-# 👾scenerPark: A Vulkan-Based game engine! 📽️👾
+# 👾PoggerPark: A Vulkan-Based game engine! 📽️👾
 
 A very simple game "engine" in C++. Only the Vulkan SDK has to be pre-installed; all other libraries are fetched using CMake FetchContent.
 

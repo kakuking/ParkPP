@@ -52,4 +52,4 @@ msbuild PoggerPark.sln -property:Configuration=Release
 ```
 
 ### Mac & Linux - 
-I don'tscenscen
+I don't know 😅

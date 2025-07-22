@@ -12,7 +12,6 @@
 #include <unordered_map>
 
 #include <tiny_obj_loader.h>
-
 #include <engine/renderer.h>
 
 namespace Engine {

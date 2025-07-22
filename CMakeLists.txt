@@ -27,6 +27,7 @@ target_include_directories(PoggerPark PRIVATE
   ${vk_bootstrap_SOURCE_DIR}/src
   ${SDL3_SOURCE_DIR}/include
   ${volk_SOURCE_DIR}/volk
+  ${tinyobjloader_SOURCE_DIR}
 )
 
 # Link libraries
@@ -37,6 +38,14 @@ target_link_libraries(PoggerPark PRIVATE
   SDL3::SDL3
   volk
 )
+
+if (WIN32)
+  add_custom_command(TARGET PoggerPark POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      "$<TARGET_FILE:SDL3::SDL3>"
+      $<TARGET_FILE_DIR:PoggerPark>
+  )
+endif()
 
 # ImGui source files
 target_sources(PoggerPark PRIVATE

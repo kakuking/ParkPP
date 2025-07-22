@@ -51,6 +51,13 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(tinygltf)
 
+FetchContent_Declare(
+  tinyobjloader
+  GIT_REPOSITORY https://github.com/tinyobjloader/tinyobjloader.git
+  GIT_TAG v2.0.0rc10
+)
+FetchContent_MakeAvailable(tinyobjloader)
+
 # fmt
 FetchContent_Declare(
   fmt
@@ -94,3 +101,4 @@ set(Vulkan_INCLUDE_DIRS ${Vulkan_INCLUDE_DIRS} CACHE INTERNAL "Vulkan_INCLUDE_DI
 set(vk_bootstrap_SOURCE_DIR ${vk_bootstrap_SOURCE_DIR} CACHE INTERNAL "vk_bootstrap_SOURCE_DIR")
 set(volk_SOURCE_DIR ${volk_SOURCE_DIR} CACHE INTERNAL "volk_SOURCE_DIR")
 set(SDL3_SOURCE_DIR ${SDL3_SOURCE_DIR} CACHE INTERNAL "SDL3_SOURCE_DIR")
+set(tinyobjloader_SOURCE_DIR ${tinyobjloader_SOURCE_DIR} CACHE INTERNAL "tinyobjloader source dir")

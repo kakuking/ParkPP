@@ -70,7 +70,9 @@ target_sources(PoggerPark PRIVATE
 
 # Define for stb (header-only)
 target_compile_definitions(PoggerPark PRIVATE
-  STB_IMAGE_IMPLEMENTATION
+  # STB_IMAGE_IMPLEMENTATION
+  # STB_IMAGE_WRITE_IMPLEMENTATION
+  TINYGLTF_IMPLEMENTATION
   VOLK_IMPLEMENTATION
 )
 

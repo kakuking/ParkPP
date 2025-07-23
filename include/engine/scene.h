@@ -23,7 +23,6 @@ public:
     int add_orthographic_light(Renderer &renderer, glm::vec3 position, glm::vec3 look_at, glm::vec3 up, float near_plane=0.1f, float far_plane=10.f, float ortho_half_size=6.f);
 
     ModelInfo add_model(std::string filename, std::vector<std::string> texture_filename, bool opaque=true, bool updating=false);
-    ModelInfo add_model_with_material(std::string filename, std::vector<std::string> texture_filename, bool opaque=true, bool updating=false);
 
     void update_opaque_model_transform(ModelInfo &mi, glm::mat4 transform, bool replace=false);
     void update_transparent_model_transform(ModelInfo &mi, glm::mat4 transform, bool replace=false);
@@ -41,6 +40,10 @@ private:
     float get_or_add_texture(std::string texture_filename);
     void load_obj_model(Engine::Model &output_model, std::string filename, float base_texture=0.f);
     void load_obj_model_with_material(Engine::Model &output_model, std::string filename, float base_texture=0.f, std::string base_dir="");
+    
+    ModelInfo add_obj_model(std::string filename, std::vector<std::string> texture_filename, bool opaque=true, bool updating=false);
+    ModelInfo add_gltf_model(std::string filename, std::vector<std::string> texture_filename, bool opaque=true, bool updating=false);
+
 
 
     size_t m_last_non_updating_opaque_model;

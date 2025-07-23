@@ -27,6 +27,7 @@ Most of the Vulkan Functionalities are quite basic. I picked them up from the [V
 11. ~~Maybe~~ Moving from GLFW to SDL ~~or SFML~~ (for audio capabilities and better framerates) 👨‍🔬 
 12. Transparency 🔎
 13. A better abstraction for scenes and models 🏞⛲
+14. Added support for gltf models
 
 ## Things to implement
 

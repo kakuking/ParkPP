@@ -1,9 +1,30 @@
 #include <engine/scene.h>
 
+#define STB_IMAGE_IMPLEMENTATION
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include <tiny_gltf.h>
+
 #include <fmt/format.h>
 
 namespace Engine {
+
+bool ends_with(const std::string& value, const std::string& suffix) {
+    if (suffix.size() > value.size()) return false;
+    return std::equal(suffix.rbegin(), suffix.rend(), value.rbegin());
+}
+
 ModelInfo Scene::add_model(std::string filename, std::vector<std::string> texture_filename, bool opaque, bool updating) {
+    if(ends_with(filename, ".obj"))
+        return add_obj_model(filename, texture_filename, opaque, updating);
+    else if(ends_with(filename, ".glb") || ends_with(filename, ".gltf"))
+        return add_gltf_model(filename, texture_filename, opaque, updating);
+    else
+        throw std::runtime_error("Unsupported model format!");
+}
+
+
+/*
+ModelInfo Scene::add_obj_model(std::string filename, std::vector<std::string> texture_filename, bool opaque, bool updating) {
     if(updating)
         std::cout << "Updating\n";
     
@@ -91,8 +112,9 @@ ModelInfo Scene::add_model(std::string filename, std::vector<std::string> textur
 
     return model_info;
 }
+*/
 
-ModelInfo Scene::add_model_with_material(std::string filename, std::vector<std::string> texture_filename, bool opaque, bool updating) {
+ModelInfo Scene::add_obj_model(std::string filename, std::vector<std::string> texture_filename, bool opaque, bool updating) {
     if(updating)
         std::cout << "Updating\n";
     
@@ -190,6 +212,132 @@ ModelInfo Scene::add_model_with_material(std::string filename, std::vector<std::
 
     size_t num_faces = model.indices.size() / 3;
     fmt::println("Loaded model --> Filename: {}, Num Vertices: {}, Num Indices: {}, Num Faces: {}",
+                 filename, model.vertices.size(), model.indices.size(), num_faces);
+
+    return model_info;
+}
+
+ModelInfo Scene::add_gltf_model(std::string filename, std::vector<std::string> texture_filename, bool opaque, bool updating) {
+    if (updating)
+        std::cout << "Updating\n";
+
+    float base_texture = (float)m_textures.size();
+    m_textures.insert(m_textures.end(), texture_filename.begin(), texture_filename.end());
+
+    Model model{};
+    model.base_texture = base_texture;
+
+    tinygltf::Model gltfModel;
+    tinygltf::TinyGLTF loader;
+    std::string err, warn;
+
+    bool ret;
+    if (ends_with(filename, ".glb"))
+        ret = loader.LoadBinaryFromFile(&gltfModel, &err, &warn, filename);
+    else 
+        ret = loader.LoadASCIIFromFile(&gltfModel, &err, &warn, filename);
+
+    if (!ret)
+        throw std::runtime_error("Failed to load GLTF: " + warn + err);
+
+    std::unordered_map<Vertex, uint32_t> unique_vertices{};
+
+    for (const auto &gltfMesh : gltfModel.meshes) {
+        for (const auto &primitive : gltfMesh.primitives) {
+            if (primitive.mode != TINYGLTF_MODE_TRIANGLES) continue;
+
+            const auto &posAccessor = gltfModel.accessors[primitive.attributes.at("POSITION")];
+            const auto &posBufferView = gltfModel.bufferViews[posAccessor.bufferView];
+            const auto &posBuffer = gltfModel.buffers[posBufferView.buffer];
+
+            const float* positions = reinterpret_cast<const float*>(&posBuffer.data[posBufferView.byteOffset + posAccessor.byteOffset]);
+            
+            const float* normals = nullptr;
+            if (primitive.attributes.find("NORMAL") != primitive.attributes.end()) {
+                const auto &normalAccessor = gltfModel.accessors[primitive.attributes.at("NORMAL")];
+                const auto &normalView = gltfModel.bufferViews[normalAccessor.bufferView];
+                normals = reinterpret_cast<const float*>(&gltfModel.buffers[normalView.buffer].data[normalView.byteOffset + normalAccessor.byteOffset]);
+            }
+
+            const float* texcoords = nullptr;
+            if (primitive.attributes.find("TEXCOORD_0") != primitive.attributes.end()) {
+                const auto &uvAccessor = gltfModel.accessors[primitive.attributes.at("TEXCOORD_0")];
+                const auto &uvView = gltfModel.bufferViews[uvAccessor.bufferView];
+                texcoords = reinterpret_cast<const float*>(&gltfModel.buffers[uvView.buffer].data[uvView.byteOffset + uvAccessor.byteOffset]);
+            }
+
+            const auto &indexAccessor = gltfModel.accessors[primitive.indices];
+            const auto &indexView = gltfModel.bufferViews[indexAccessor.bufferView];
+            const auto &indexBuffer = gltfModel.buffers[indexView.buffer];
+
+            const void* indexData = &indexBuffer.data[indexView.byteOffset + indexAccessor.byteOffset];
+            const size_t indexCount = indexAccessor.count;
+
+            int mat_id = primitive.material;
+
+            for (size_t i = 0; i < indexCount; ++i) {
+                uint32_t index = 0;
+                switch (indexAccessor.componentType) {
+                    case TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE:
+                        index = ((const uint8_t*)indexData)[i]; break;
+                    case TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT:
+                        index = ((const uint16_t*)indexData)[i]; break;
+                    case TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT:
+                        index = ((const uint32_t*)indexData)[i]; break;
+                }
+
+                Vertex vertex{};
+
+                vertex.pos = {
+                    positions[3 * index + 0],
+                    positions[3 * index + 1],
+                    positions[3 * index + 2]
+                };
+
+                vertex.normal = normals ? glm::vec3(
+                    normals[3 * index + 0],
+                    normals[3 * index + 1],
+                    normals[3 * index + 2]
+                ) : glm::vec3(0.f);
+
+                if (texcoords) {
+                    vertex.u = texcoords[2 * index + 0];
+                    vertex.v = texcoords[2 * index + 1]; // Flip V
+                } else {
+                    vertex.u = 0.0f;
+                    vertex.v = 0.0f;
+                }
+
+                vertex.color = {1.f, 1.f, (float)m_model_transform_matrices.size()};
+                vertex.material_idx = mat_id >= 0 ? base_texture + static_cast<float>(mat_id) : base_texture;
+
+                if (unique_vertices.count(vertex) == 0) {
+                    unique_vertices[vertex] = static_cast<uint32_t>(model.vertices.size());
+                    model.vertices.push_back(vertex);
+                }
+
+                model.indices.push_back(unique_vertices[vertex]);
+            }
+        }
+    }
+
+    model.model_matrix = glm::rotate(glm::mat4(1.f), glm::radians(180.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+
+    ModelInfo model_info{};
+    if (opaque) {
+        m_opaque_models.push_back(model);
+        model_info.model_idx = m_opaque_models.size() - 1;
+    } else {
+        m_transparent_models.push_back(model);
+        model_info.model_idx = m_transparent_models.size() - 1;
+    }
+
+    m_model_transform_matrices.push_back(model.model_matrix);
+    model_info.model_transform_idx = m_model_transform_matrices.size() - 1;
+    model_info.model_sub_idx = 0;
+
+    size_t num_faces = model.indices.size() / 3;
+    fmt::println("Loaded GLTF --> Filename: {}, Vertices: {}, Indices: {}, Faces: {}",
                  filename, model.vertices.size(), model.indices.size(), num_faces);
 
     return model_info;

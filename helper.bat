@@ -9,4 +9,4 @@ msbuild PoggerPark.sln -property:Configuration=Release
 
 cd Release
 
-.\PoggerPark.exe
+.\PoggerPark.exe %1

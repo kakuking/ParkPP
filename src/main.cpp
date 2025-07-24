@@ -13,9 +13,11 @@
 #include <game/default_transparent_pipeline.h>
 
 #include <fmt/format.h>
-
 #include <iostream>
-#include <chrono>
+
+#include <chrono>   // for FPS
+
+#include <filesystem>   // for abs filename
 
 #ifdef _WIN32
     #include <windows.h>
@@ -44,7 +46,7 @@ int main(int argc, char** argv) {
         attach_console(); // Attach to console of parent process if any
     #endif
 
-    // Initializing Vulkan  =====================================================================================
+    // Initializing Vulkan  ============================================================================
     Engine::Renderer renderer;
     Game::DefaultPipeline pipeline;
     Game::DefaultTransparentPipeline transparent_pipeline;
@@ -53,10 +55,21 @@ int main(int argc, char** argv) {
     float width = (float) renderer.get_swapchain_extent().width;
     float height = (float) renderer.get_swapchain_extent().height;
     
-    // Initializing Scene  =====================================================================================
-    Engine::Scene scene;
+    // Initializing Scene  =============================================================================
+    float aspect_ratio = width/height;
+    Engine::Scene scene(aspect_ratio);
 
-    Engine::ModelInfo car = scene.add_model("models/F1_2026.glb", {"textures/Livery.jpg", "textures/Checkerboard.png", "textures/WheelCovers.jpg", "textures/TyreSoft.png"});
+    std::filesystem::path scene_path;
+    if (argc > 1) {
+        scene_path = std::filesystem::absolute(argv[1]);
+    } else {
+        scene_path = std::filesystem::absolute("./scenes/scene.xml");
+    }
+
+    scene.load_scene_from_xml(scene_path.string());
+
+    /*
+    Engine::ModelInfo car = scene.add_model("./models/F1_2026.glb", {"textures/Livery.jpg", "textures/Checkerboard.png", "textures/WheelCovers.jpg", "textures/TyreSoft.png"});
     Engine::ModelInfo ground = scene.add_model("./models/plane.obj", {"textures/Checkerboard.png"});
     Engine::ModelInfo red_plane = scene.add_model("./models/plane.obj", {"textures/red_board.png"}, false);
 
@@ -67,20 +80,23 @@ int main(int argc, char** argv) {
     glm::vec3 eye(camera_d, camera_d, camera_d);
     glm::vec3 look_at(0.f, 0.f, 0.f);
     glm::vec3 up(0.f, 0.f, 1.f);
+
     glm::vec3 light_pos = glm::vec3(0.0f, 5.0f, 3.0f); // light above and at an angle
     glm::vec3 light_target = glm::vec3(0.0f, 0.0f, 0.0f);
     glm::vec3 light_up = glm::vec3(0.0f, 1.0f, 0.0f);
+    glm::vec3 light_color(1.0, 1.0, 1.0);
 
     scene.set_perspective_camera(eye, look_at, up, width / height, 0.1f, 100.f, 45.f);
-    scene.add_orthographic_light(renderer, light_pos, light_target, light_up, 0.1f, 15.f, 6.f);
+    scene.add_orthographic_light(light_color, light_pos, light_target, light_up, 0.1f, 15.f, 6.f);
+    */
 
     scene.create_buffers(renderer);
     
-    // Initializing Program =====================================================================================
+    // Initializing Program ============================================================================
     std::vector<Engine::Pipeline*> pipelines = {&pipeline, &transparent_pipeline};
     renderer.initialize(pipelines);
     
-    // Starting Game Loop   =====================================================================================
+    // Starting Game Loop   ============================================================================
     int current_frame = 0;
     uint32_t image_index = 0;
     VkCommandBuffer command_buffer;
@@ -106,13 +122,13 @@ int main(int argc, char** argv) {
         renderer.render_shadow_maps(command_buffer, scene.m_opaque_models);
 
         renderer.begin_render_pass(command_buffer, image_index);
-        // Rendering opaque objects =====================================================================
+        // Rendering opaque objects ====================================================================
         renderer.bind_pipeline_and_descriptors(command_buffer, 0, current_frame);
         renderer.set_default_viewport_and_scissor(command_buffer);
 
         scene.render_opaque_models(renderer, command_buffer);
 
-        // Rendering transparent objects =====================================================================
+        // Rendering transparent objects ===============================================================
         if (scene.m_transparent_models.size() > 0) {
             renderer.bind_pipeline_and_descriptors(command_buffer, 1, current_frame);
             renderer.set_default_viewport_and_scissor(command_buffer);

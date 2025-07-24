@@ -7,6 +7,7 @@ layout(location = 0) in vec3 texCoord;
 layout(location = 1) in vec4 shadowCoord;
 layout(location = 2) in vec3 fragNormal;
 layout(location = 3) in vec3 lightPos;
+layout(location = 4) in vec3 lightColor;
 
 layout(location = 0) out vec4 outColor;
 
@@ -60,5 +61,6 @@ void main() {
     float NdotL = max(dot(normal, -lightDir), 0.0);  // Directional light
     float diffuse = mix(0.3, 1.0, NdotL);            // Optional ambient
 
-    outColor = vec4(baseColor.rgb * diffuse * shadowFactor, baseColor.a);
+    vec3 temp = lightColor * baseColor.rgb * diffuse * shadowFactor;
+    outColor = vec4(temp, baseColor.a);
 }

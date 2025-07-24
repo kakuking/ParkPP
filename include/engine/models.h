@@ -90,8 +90,9 @@ struct Light {
 struct PushConstants {
     glm::mat4 proj;
     glm::mat4 view;
-    glm::mat4 light;
+    glm::mat4 light_PV;
     glm::vec4 light_pos;
+    glm::vec4 light_color = glm::vec4(1.f, 1.f, 1.f, 1.f);
 };
 
 struct Model {

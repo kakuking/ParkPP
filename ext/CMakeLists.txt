@@ -90,6 +90,14 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(vk_bootstrap)
 
+# pugixml (XML parser)
+FetchContent_Declare(
+  pugixml
+  GIT_REPOSITORY https://github.com/zeux/pugixml.git
+  GIT_TAG v1.14
+)
+FetchContent_MakeAvailable(pugixml)
+
 set(imgui_SOURCE_DIR ${imgui_SOURCE_DIR} CACHE INTERNAL "imgui source dir")
 set(vma_SOURCE_DIR ${vma_SOURCE_DIR} CACHE INTERNAL "vma_SOURCE_DIR")
 set(glm_SOURCE_DIR ${glm_SOURCE_DIR} CACHE INTERNAL "glm_SOURCE_DIR")
@@ -102,3 +110,4 @@ set(vk_bootstrap_SOURCE_DIR ${vk_bootstrap_SOURCE_DIR} CACHE INTERNAL "vk_bootst
 set(volk_SOURCE_DIR ${volk_SOURCE_DIR} CACHE INTERNAL "volk_SOURCE_DIR")
 set(SDL3_SOURCE_DIR ${SDL3_SOURCE_DIR} CACHE INTERNAL "SDL3_SOURCE_DIR")
 set(tinyobjloader_SOURCE_DIR ${tinyobjloader_SOURCE_DIR} CACHE INTERNAL "tinyobjloader source dir")
+set(pugixml_SOURCE_DIR ${pugixml_SOURCE_DIR} CACHE INTERNAL "pugixml_SOURCE_DIR")

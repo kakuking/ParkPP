@@ -6,6 +6,9 @@
 
 #include <fmt/format.h>
 
+#include <pugixml.hpp>
+#include <sstream>
+
 namespace Engine {
 
 bool ends_with(const std::string& value, const std::string& suffix) {
@@ -21,7 +24,6 @@ ModelInfo Scene::add_model(std::string filename, std::vector<std::string> textur
     else
         throw std::runtime_error("Unsupported model format!");
 }
-
 
 /*
 ModelInfo Scene::add_obj_model(std::string filename, std::vector<std::string> texture_filename, bool opaque, bool updating) {
@@ -337,13 +339,16 @@ ModelInfo Scene::add_gltf_model(std::string filename, std::vector<std::string> t
     model_info.model_sub_idx = 0;
 
     size_t num_faces = model.indices.size() / 3;
-    fmt::println("Loaded GLTF --> Filename: {}, Vertices: {}, Indices: {}, Faces: {}",
+    fmt::println("Loaded model --> Filename: {}, Vertices: {}, Indices: {}, Faces: {}",
                  filename, model.vertices.size(), model.indices.size(), num_faces);
 
     return model_info;
 }
 
 void Scene::create_buffers(Renderer &renderer) {
+    for(Light &l: m_lights)
+        renderer.add_light(l.mvp, l.type);
+
     for (Model &model: m_opaque_models)
         model.create_buffers(renderer);
 
@@ -367,19 +372,19 @@ void Scene::render_opaque_models(Renderer &renderer, VkCommandBuffer &command_bu
         // std::cout << "Rendering model\n";
         const Engine::Model &model = m_opaque_models[mod];
 
-        // Retreive vertex and index buffers =============================================================
+        // Retreive vertex and index buffers ===========================================================
         VkBuffer vertex_buffers[] = {renderer.get_buffer(model.vertex_buffer_idx)};
         VkDeviceSize offsets[] = {0};
         VkBuffer index_buffer = renderer.get_buffer(model.index_buffer_idx);
         
-        // Bind vertex and index buffers =================================================================
+        // Bind vertex and index buffers ===============================================================
         renderer.m_dispatch.cmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers, offsets);
         renderer.m_dispatch.cmdBindIndexBuffer(command_buffer, index_buffer, 0, VK_INDEX_TYPE_UINT32);
 
-        // Set push constants ============================================================================
+        // Set push constants ==========================================================================
         renderer.m_dispatch.cmdPushConstants(command_buffer, renderer.get_pipeline_layout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_push_constants), &m_push_constants);
         
-        // draw call =====================================================================================
+        // draw call ===================================================================================
         renderer.m_dispatch.cmdDrawIndexed(command_buffer, static_cast<uint32_t>(model.indices.size()), 1, 0, 0, 0);
     }
 }
@@ -388,35 +393,37 @@ void Scene::render_transparent_models(Renderer &renderer, VkCommandBuffer &comma
     for (int mod = 0; mod < m_transparent_models.size(); mod++) {
         const Engine::Model &model = m_transparent_models[mod];
 
-        // Retreive vertex and index buffers =============================================================
+        // Retreive vertex and index buffers ===========================================================
         VkBuffer vertex_buffers[] = {renderer.get_buffer(model.vertex_buffer_idx)};
         VkDeviceSize offsets[] = {0};
         VkBuffer index_buffer = renderer.get_buffer(model.index_buffer_idx);
         
-        // Bind vertex and index buffers =================================================================
+        // Bind vertex and index buffers ===============================================================
         renderer.m_dispatch.cmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers, offsets);
         renderer.m_dispatch.cmdBindIndexBuffer(command_buffer, index_buffer, 0, VK_INDEX_TYPE_UINT32);
 
-        // Set push constants ============================================================================
+        // Set push constants ==========================================================================
         renderer.m_dispatch.cmdPushConstants(command_buffer, renderer.get_pipeline_layout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_push_constants), &m_push_constants);
         
-        // draw call =====================================================================================
+        // draw call ===================================================================================
         renderer.m_dispatch.cmdDrawIndexed(command_buffer, static_cast<uint32_t>(model.indices.size()), 1, 0, 0, 0);
     }
 }
 
-int Scene::add_light(Renderer &renderer, glm::vec3 light_pos, glm::mat4 light_matrix) {
-    int light_idx = renderer.add_light(light_matrix, 0);
+void Scene::add_light(glm::vec3 light_color, glm::vec3 light_pos, glm::mat4 light_matrix) {
+    Light light{};
+    light.mvp = light_matrix;
 
-    m_lights.push_back(light_idx);
+    m_lights.push_back(light);
 
-    m_push_constants.light = light_matrix;
+    m_push_constants.light_PV = light_matrix;
     m_push_constants.light_pos = glm::vec4(light_pos, 0.f);
+    m_push_constants.light_color = glm::vec4(light_color, 1.0);
 
-    return light_idx;
+    return;
 }
 
-int Scene::add_orthographic_light(Renderer &renderer, glm::vec3 position, glm::vec3 look_at, glm::vec3 up, float near_plane, float far_plane, float ortho_half_size) {
+void Scene::add_orthographic_light(glm::vec3 color, glm::vec3 position, glm::vec3 look_at, glm::vec3 up, float near_plane, float far_plane, float ortho_half_size) {
     glm::vec3 light_pos = position; // light above and at an angle
     glm::vec3 light_target = look_at;
     glm::vec3 light_up = up;
@@ -432,7 +439,7 @@ int Scene::add_orthographic_light(Renderer &renderer, glm::vec3 position, glm::v
     light_proj[1][1] *= -1;
     glm::mat4 light_pv = light_proj * light_view;
 
-    return add_light(renderer, position, light_pv);
+    return add_light(color, position, light_pv);
 }
 
 void Scene::set_camera(glm::mat4 proj, glm::mat4 view) {
@@ -440,9 +447,12 @@ void Scene::set_camera(glm::mat4 proj, glm::mat4 view) {
     m_push_constants.view = view;
 }
 
-void Scene::set_perspective_camera(glm::vec3 eye, glm::vec3 look_at, glm::vec3 up, float aspect_ratio, float near_plane, float far_plane, float fov_degrees) {
-    m_push_constants.view = glm::lookAt(eye, look_at, up);
-    m_push_constants.proj = glm::perspective(glm::radians(fov_degrees), aspect_ratio, near_plane, far_plane);
+void Scene::set_perspective_camera(glm::vec3 eye, glm::vec3 center, glm::vec3 up, float forced_aspect_ratio, float near_plane, float far_plane, float fov_degrees) {
+    if (forced_aspect_ratio == 0.0f)
+        forced_aspect_ratio = aspect_ratio;
+
+    m_push_constants.view = glm::lookAt(eye, center, up);
+    m_push_constants.proj = glm::perspective(glm::radians(fov_degrees), forced_aspect_ratio, near_plane, far_plane);
     m_push_constants.proj[1][1] *= -1;
 }
 
@@ -471,4 +481,245 @@ void Scene::update(float delta_time) {
 
     m_push_constants.view = glm::lookAt(glm::vec3(camera_d * cosf(total_time), camera_d * sinf(total_time),  camera_d), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 0.f, 1.f));
 }
+
+std::vector<float> Scene::parse_floats(const std::string& str) {
+    std::vector<float> result;
+    std::stringstream ss(str);
+    std::string token;
+    while (std::getline(ss, token, ',')) {
+        result.push_back(std::stof(token));
+    }
+    return result;
+}
+
+std::vector<std::string> Scene::parse_strings(const std::string& str) {
+    std::vector<std::string> result;
+    std::stringstream ss(str);
+    std::string token;
+    while (std::getline(ss, token, ',')) {
+        result.push_back(token);
+    }
+    return result;
+}
+
+void Scene::process_camera(const pugi::xml_node& node) {
+    std::string camera_type = node.attribute("type").as_string();
+
+    glm::vec3 eye(1.0, 1.0, 1.0);
+    glm::vec3 center(0.0, 0.0, 0.0);
+    glm::vec3 up(0.0, 0.0, 1.0);
+    float fov = 45.f;
+    float near_plane = 0.1f;
+    float far_plane = 10.f;
+
+    for (pugi::xml_node child : node.children()) {
+        std::string child_name(child.name());
+
+        std::string child_value = child.attribute("value").as_string();
+
+        std::vector<float> value = parse_floats(child_value);
+
+        if (child_name.compare("eye") == 0) {
+            if (value.size() != 3) throw std::runtime_error("Need 3 floats to specify a vector");
+
+            eye = glm::vec3(value[0], value[1], value[2]);
+        } else if (child_name.compare("center") == 0) {
+            if (value.size() != 3) throw std::runtime_error("Need 3 floats to specify a vector");
+
+            center = glm::vec3(value[0], value[1], value[2]);
+        } else if (child_name.compare("up") == 0) {
+            if (value.size() != 3) throw std::runtime_error("Need 3 floats to specify a vector");
+
+            up = glm::vec3(value[0], value[1], value[2]);
+        } else if (child_name.compare("fov") == 0) {
+            if (value.size() != 1) throw std::runtime_error("Need 1 floats to specify an angle");
+
+            fov = value[0];
+        } else if (child_name.compare("near") == 0) {
+            if (value.size() != 1) throw std::runtime_error("Need 1 floats to specify a float");
+
+            near_plane = value[0];
+        } else if (child_name.compare("far") == 0) {
+            if (value.size() != 1) throw std::runtime_error("Need 1 floats to specify a float");
+
+            far_plane = value[0];
+        } else {
+            throw std::runtime_error("Unsupported attribute for a camera!");
+        }
+    }
+
+    if (camera_type.compare("perspective") == 0)
+        set_perspective_camera(eye, center, up, aspect_ratio, near_plane, far_plane, fov);
+    // else if (camera_type.compare("orthographic") == 0)
+    //     set_orthographic_camera(eye, center, up, near_plane, far_plane);
+    
+    return;
+}
+
+void Scene::process_light(const pugi::xml_node& node) {
+    std::string light_type = node.attribute("type").as_string();
+
+    glm::vec3 color(1.0, 1.0, 1.0);
+    glm::vec3 eye(1.0, 1.0, 1.0);
+    glm::vec3 center(0.0, 0.0, 0.0);
+    glm::vec3 up(0.0, 0.0, 1.0);
+
+    float near_plane = 0.1f;
+    float far_plane = 15.f;
+    float ortho_size = 6.f;
+
+    for (pugi::xml_node child : node.children()) {
+        std::string child_name(child.name());
+
+        std::string child_value = child.attribute("value").as_string();
+
+        std::vector<float> value = parse_floats(child_value);
+
+        if (child_name.compare("eye") == 0) {
+            if (value.size() != 3) throw std::runtime_error("Need 3 floats to specify a vector");
+
+            eye = glm::vec3(value[0], value[1], value[2]);
+        } else if (child_name.compare("center") == 0) {
+            if (value.size() != 3) throw std::runtime_error("Need 3 floats to specify a vector");
+
+            center = glm::vec3(value[0], value[1], value[2]);
+        } else if (child_name.compare("up") == 0) {
+            if (value.size() != 3) throw std::runtime_error("Need 3 floats to specify a vector");
+
+            up = glm::vec3(value[0], value[1], value[2]);
+        } else if (child_name.compare("color") == 0) {
+            if (value.size() != 3) throw std::runtime_error("Need 3 floats to specify a vector");
+
+            color = glm::vec3(value[0], value[1], value[2]);
+        } else if (child_name.compare("size") == 0) {
+            if (value.size() != 1) throw std::runtime_error("Need 1 floats to specify an angle");
+
+            ortho_size = value[0];
+        } else if (child_name.compare("near") == 0) {
+            if (value.size() != 1) throw std::runtime_error("Need 1 floats to specify a float");
+
+            near_plane = value[0];
+        } else if (child_name.compare("far") == 0) {
+            if (value.size() != 1) throw std::runtime_error("Need 1 floats to specify a float");
+
+            far_plane = value[0];
+        } else {
+            throw std::runtime_error("Unsupported attribute for a camera!");
+        }
+    }
+
+    if (light_type.compare("directional") == 0)
+        add_orthographic_light(color, eye, center, up, near_plane, far_plane, ortho_size);
+    // else if (camera_type.compare("orthographic") == 0)
+    //     set_orthographic_camera(eye, center, up, near_plane, far_plane);
+    
+    return;
+}
+
+void Scene::process_transform(const pugi::xml_node& node, glm::mat4 &out) {
+    std::string node_name(node.name());
+
+    glm::mat4 t(1.f);
+
+    for (pugi::xml_node child : node.children()) {
+        std::string child_name(child.name());
+
+        std::string child_value = child.attribute("value").as_string();
+        std::vector<float> value = parse_floats(child_value);
+
+        if (child_name.compare("scale") == 0) {
+            if (value.size() != 3) throw std::runtime_error("Need 3 floats to specify a vector");
+            glm::vec3 scale = glm::vec3(value[0], value[1], value[2]);
+            t = glm::scale(t, scale);
+        } else if (child_name.compare("translate") == 0) {
+            if (value.size() != 3) throw std::runtime_error("Need 3 floats to specify a vector");
+            glm::vec3 translate = glm::vec3(value[0], value[1], value[2]);
+            t = glm::translate(t, translate);
+        } else if (child_name.compare("rotate") == 0) {
+            if (value.size() != 4) throw std::runtime_error("Need 4 floats to specify a angle-axis");
+            float angle = value[0];
+            glm::vec3 axis = glm::vec3(value[1], value[2], value[3]);
+            t = glm::rotate(t, glm::radians(angle), axis);
+        } else {
+            throw std::runtime_error(fmt::format("Unsupported node \'{}\' found with parent node \'{}\'", child_name, node_name));
+        }
+    }
+
+    out = t * out;
+}
+
+void Scene::process_mesh(const pugi::xml_node& node) {
+    std::string node_name(node.name());
+
+    std::string filename;
+    std::vector<std::string> textures;
+    glm::mat4 transform(1.f);
+    bool updated_transform = false;
+    bool opaque = true;
+    bool updating = false;
+
+    for (pugi::xml_node child : node.children()) {
+        std::string child_name(child.name());
+        if (child_name.compare("transform") == 0) {
+            process_transform(child, transform);
+            updated_transform = true;
+            continue;
+        }
+
+        std::string child_value = child.attribute("value").as_string();
+
+        if (child_name.compare("filename") == 0) {
+            filename = child_value;
+        } else if (child_name.compare("textures") == 0) {
+            textures = parse_strings(child_value);
+        } else if (child_name.compare("opaque") == 0) {
+            if (child_value.compare("true") == 0)
+                opaque = true;
+            else
+                opaque = false;
+        } else if (child_name.compare("updating") == 0) {
+            if (child_value.compare("true") == 0)
+                updating = true;
+            else
+                updating = false;
+        }
+    }
+
+    ModelInfo mi = add_model(filename, textures, opaque, updating);
+    if (updated_transform) {
+        if (opaque)
+            update_opaque_model_transform(mi, transform, false);
+        else 
+            update_transparent_model_transform(mi, transform, false);
+    }
+}
+
+void Scene::process_node(const pugi::xml_node& node) {
+    std::string node_name(node.name()); 
+
+    if (node_name.compare("camera") == 0) {
+        process_camera(node);
+    } else if (node_name.compare("light") == 0) {
+        process_light(node);
+    } else if (node_name.compare("mesh") == 0) {
+        process_mesh(node);
+    }
+}
+
+void Scene::load_scene_from_xml(std::string filename) {
+    pugi::xml_document doc;
+
+    pugi::xml_parse_result result = doc.load_file(filename.c_str());
+    if(!result)
+        throw std::runtime_error(result.description());
+    
+    pugi::xml_node root = doc.child("scene");
+    process_node(root);
+    for (pugi::xml_node child : root.children()) {
+        process_node(child);
+    }
+
+    return;
+}
+
 }

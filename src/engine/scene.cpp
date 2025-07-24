@@ -449,7 +449,12 @@ void Scene::set_camera(glm::mat4 proj, glm::mat4 view) {
 
 void Scene::set_perspective_camera(glm::vec3 eye, glm::vec3 center, glm::vec3 up, float forced_aspect_ratio, float near_plane, float far_plane, float fov_degrees) {
     if (forced_aspect_ratio == 0.0f)
-        forced_aspect_ratio = aspect_ratio;
+        forced_aspect_ratio = m_aspect_ratio;
+
+    m_fov = fov_degrees;
+    m_near_plane = near_plane;
+    m_far_plane = far_plane;
+    perspective = true;
 
     m_push_constants.view = glm::lookAt(eye, center, up);
     m_push_constants.proj = glm::perspective(glm::radians(fov_degrees), forced_aspect_ratio, near_plane, far_plane);
@@ -474,7 +479,14 @@ void Scene::update_transparent_model_transform(ModelInfo &mi, glm::mat4 transfor
     m_model_transform_matrices[mi.model_transform_idx] = m_transparent_models[mi.model_idx].model_matrix;
 }
 
-void Scene::update(float delta_time) {
+void Scene::update(float delta_time, float aspect_ratio) {
+    if (aspect_ratio != m_aspect_ratio) {
+        m_aspect_ratio = aspect_ratio;
+
+        m_push_constants.proj = glm::perspective(glm::radians(m_fov), m_aspect_ratio, m_near_plane, m_far_plane);
+        m_push_constants.proj[1][1] *= -1;
+    }
+
     total_time += delta_time;
 
     float camera_d = 10.f;
@@ -549,7 +561,7 @@ void Scene::process_camera(const pugi::xml_node& node) {
     }
 
     if (camera_type.compare("perspective") == 0)
-        set_perspective_camera(eye, center, up, aspect_ratio, near_plane, far_plane, fov);
+        set_perspective_camera(eye, center, up, m_aspect_ratio, near_plane, far_plane, fov);
     // else if (camera_type.compare("orthographic") == 0)
     //     set_orthographic_camera(eye, center, up, near_plane, far_plane);
     

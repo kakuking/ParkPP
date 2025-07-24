@@ -23,14 +23,14 @@
         <textures value="textures/Livery.jpg,textures/Checkerboard.png,textures/WheelCovers.jpg,textures/TyreSoft.png"/>
 
         <transform>
-            <rotate value="45, 0, 0, 1"/>
+            <rotate value="55, 0, 0, 1"/>
         </transform>
     </mesh>
     <mesh>
         <filename value="./models/plane.obj"/>
-        <textures value="textures/Checkerboard.png"/>
+        <textures value="textures/track.png"/>
     </mesh>
-    <mesh>
+    <!-- <mesh>
         <filename value="./models/plane.obj"/>
         <textures value="textures/red_board.png"/>
         <opaque value="false"/>
@@ -39,5 +39,5 @@
             <scale value="0.5, 0.5, 1.0"/>
             <translate value="0.0, 0.0, 4.0"/>
         </transform>
-    </mesh>
+    </mesh> -->
 </scene>

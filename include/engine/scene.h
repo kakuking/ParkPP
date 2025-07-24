@@ -9,7 +9,7 @@ namespace Engine {
 
 class Scene {
 public:
-    Scene(float ar): aspect_ratio(ar) {}
+    Scene(float ar): m_aspect_ratio(ar) {}
 
     void load_scene_from_xml(std::string filename);
 
@@ -36,7 +36,7 @@ public:
 
     int num_textures() { return (int)m_textures.size(); }
 
-    void update(float delta_time);
+    void update(float delta_time, float aspect_ratio);
 
     std::vector<Engine::Model> m_opaque_models;
     std::vector<Engine::Model> m_transparent_models;
@@ -66,7 +66,9 @@ private:
     std::vector<std::string> m_textures;
     PushConstants m_push_constants;
 
-    float aspect_ratio;
+    bool perspective = true;
+    float m_aspect_ratio;
+    float m_fov, m_near_plane, m_far_plane;
 
     float total_time = 0.f;
 };

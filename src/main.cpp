@@ -117,7 +117,9 @@ int main(int argc, char** argv) {
         }
 
         // Updating scene ==============================================================================
-        scene.update(delta_time);
+        width = (float) renderer.get_swapchain_extent().width;
+        height = (float) renderer.get_swapchain_extent().height;
+        scene.update(delta_time, width / height);
 
         renderer.render_shadow_maps(command_buffer, scene.m_opaque_models);
 

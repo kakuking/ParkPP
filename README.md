@@ -4,12 +4,12 @@
 
 A very simple game "engine" in C++. Only the Vulkan SDK has to be pre-installed; all other libraries are fetched using CMake FetchContent.
 
-https://github.com/user-attachments/assets/e7541e06-fd3c-400b-888e-bf18c0adb40d
+https://github.com/user-attachments/assets/77a61947-565b-48d0-a110-b6e3aacc9c98
 
 I made this since I have been very interested in Computer Graphics for a really long time. I have attempted something like this many times. This is maybe the furthest I have gotten into actually doing it and keeping it clean.
 
 I was initially using GLFW but switched to SDL3 since it has more support for a wider range of features, including audio, gamepad and events. I also discovered that framerates were much more stable with SDL3 than compared to GLFW
-
+mk
 Most of the Vulkan Functionalities are quite basic. I picked them up from the [Vulkan-Tutorial](https://vulkan-tutorial.com/Introduction). If you are learning Vulkan I highly recommend going through the tutorial 😊
 
 ## Current features
